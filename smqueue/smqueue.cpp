@@ -1741,13 +1741,16 @@ SMq::lookup_uri_hostport (short_msg_pending *qmsg)
 		osip_call_id_init(&qmsg->parsed->call_id);
 	}
 
-	if (0 != strcmp(myhost, 
-			osip_call_id_get_host (qmsg->parsed->call_id))) {
-		osip_free (osip_call_id_get_host (qmsg->parsed->call_id));
-		p = (char *)osip_malloc (strlen(myhost)+1);
-		strcpy(p, myhost);
-		osip_call_id_set_host (qmsg->parsed->call_id, p);
-		qmsg->parsed_was_changed();
+	//rfc 3261 relaxes this, don't require host -kurtis
+	if (osip_call_id_get_host (qmsg->parsed->call_id)){
+		if (0 != strcmp(myhost, 
+				osip_call_id_get_host (qmsg->parsed->call_id))) {
+			osip_free (osip_call_id_get_host (qmsg->parsed->call_id));
+			p = (char *)osip_malloc (strlen(myhost)+1);
+			strcpy(p, myhost);
+			osip_call_id_set_host (qmsg->parsed->call_id, p);
+			qmsg->parsed_was_changed();
+		}
 	}
 
 	if (0 != strcmp(mycallnum,
@@ -1815,14 +1818,8 @@ SMq::respond_sip_ack(int errcode, short_msg_pending *smp,
 	osip_list_clone(&smp->parsed->vias, &response.parsed->vias, 
 			&osip_via_clone2);
 
-	// Start a new Via: line.
-	ostringstream newvia;
-	// FIXME, don't assume UDP, allow TCP here too.
-	newvia << "SIP/2.0/UDP " << my_ipaddress << ":" << my_udp_port
-	       << ";branch=1;received=" 
-	       << my_network.string_addr((struct sockaddr *)netaddr, netaddrlen,
-					 false);
-	osip_message_append_via(response.parsed, newvia.str().c_str());
+	//don't add a new via header to a response! -kurtis
+	//RFC 3261 8.2.6.2
 
 	// Make a nice message.
 	switch (errcode) {
