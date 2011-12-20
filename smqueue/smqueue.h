@@ -132,6 +132,7 @@ class short_msg {
 	// time_t date;
 	// expiration;
 	ContentType content_type; // Content-Type of the message
+	ContentType convert_content_type; // Content type to convert to, or UNSUPPORTED_CONTENT
 
 	RPData *rp_data; // Parsed RP-DATA of an SMS. It's read from MESSAGE body if
 	                 // it has application/vnd.3gpp.sms MIME-type. Note, that
@@ -152,6 +153,7 @@ class short_msg {
 		parsed_is_better (false),
 		parsed (NULL),
 		content_type(UNSUPPORTED_CONTENT),
+		convert_content_type(UNSUPPORTED_CONTENT),
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
@@ -167,6 +169,7 @@ class short_msg {
 		parsed_is_better (false),
 		parsed (NULL),
 		content_type(UNSUPPORTED_CONTENT),
+		convert_content_type(UNSUPPORTED_CONTENT),
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
@@ -192,6 +195,7 @@ class short_msg {
 		parsed_is_better (false),
 		parsed (NULL),
 		content_type(UNSUPPORTED_CONTENT),
+		convert_content_type(UNSUPPORTED_CONTENT),
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
@@ -212,6 +216,7 @@ class short_msg {
 		parsed_is_better (false),
 		parsed (NULL),
 		content_type(UNSUPPORTED_CONTENT),
+		convert_content_type(UNSUPPORTED_CONTENT),
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
@@ -414,6 +419,14 @@ class short_msg {
 		}
 	}
 
+	/* Kind of a nasty hack to convert a message as it is going out. Generally from rpdu to text. */
+	void convert_message(ContentType to) {
+		convert_content_type = to;
+	}
+	void do_not_convert_message() {
+		convert_content_type = UNSUPPORTED_CONTENT;
+	}
+
 };
 
 // I couldn't figure out how to make these static members of the class...
@@ -423,6 +436,7 @@ class short_msg {
 /* Index to all timeouts */
 extern /*static*/ int (*timeouts[STATE_MAX_PLUS_ONE])[STATE_MAX_PLUS_ONE];
 
+class SMq;
 class short_msg_pending: public short_msg {
 	public:
 	enum sm_state state;		// State of processing
@@ -603,7 +617,7 @@ class short_msg_pending: public short_msg {
 	/* Check that the message is valid, and set the qtag and qtaghash
 	   from the message's contents.   Result is 0 for valid, or
 	   SIP response error code (e.g. 405).  */
-	int validate_short_msg();
+	int validate_short_msg(SMq *manager, bool should_early_check);
 
 	// Set the qtag and qtaghash from the parsed fields.
 	// Whenever we change any of these fields, we have to recalculate
@@ -713,7 +727,7 @@ class SMq {
 
 	/* Where to send SMS's that we can't route locally. */
 	std::string global_relay;
-	int global_relay_port;
+	std::string global_relay_port;
 	short_msg::ContentType global_relay_contenttype;
 
 	/* My IP address (I can't tell how I look to others). */
@@ -782,7 +796,7 @@ class SMq {
 	}
 
 	/* Set the global relay address (host:port string) */
-	void set_global_relay(std::string gr, int port, std::string contentType) {
+	void set_global_relay(std::string gr, std::string port, std::string contentType) {
 		global_relay = gr;
 		global_relay_port = port;
 		if (contentType.length()) {
@@ -807,8 +821,13 @@ class SMq {
 		return my_network.listen_on_port (port);
 	}
 
+	bool to_is_deliverable(const char *username);
+	bool from_is_deliverable(const char *from);
+
+	bool convert_content_type(short_msg_pending *message, short_msg::ContentType to_type);
+
 	/* Convert a short_msg to a given content type */
-	void convert_message(short_msg_pending *qmsg, short_msg::ContentType toType);
+	//void convert_message(short_msg_pending *qmsg, short_msg::ContentType toType);
 
 	// Main loop listening for dgrams and processing them.
 	void main_loop();

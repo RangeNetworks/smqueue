@@ -397,6 +397,33 @@ char *SubscriberRegistry::mapCLIDGlobal(const char *local)
 }
 
 
+string SubscriberRegistry::getRandForAuthentication(bool sip, string IMSI)
+{
+	if (IMSI.length() == 0) {
+		LOG(WARNING) << "SubscriberRegistry::getRandForAuthentication attempting lookup of NULL IMSI";
+		return "";
+	}
+	LOG(INFO) << "getRandForAuthentication(" << IMSI << ")";
+	// get rand from SR server
+	HttpQuery qry("rand");
+	qry.send("imsi", IMSI);
+	qry.log();
+	if (!qry.http(sip)) return "";
+	return qry.receive("rand");
+}
+
+bool SubscriberRegistry::getRandForAuthentication(bool sip, string IMSI, uint64_t *hRAND, uint64_t *lRAND)
+{
+	string strRAND = getRandForAuthentication(sip, IMSI);
+	if (strRAND.length() == 0) {
+		*hRAND = 0;
+		*lRAND = 0;
+		return false;
+	}
+	stringToUint(strRAND, hRAND, lRAND);
+	return true;
+}
+
 void SubscriberRegistry::stringToUint(string strRAND, uint64_t *hRAND, uint64_t *lRAND)
 {
 	assert(strRAND.size() == 32);
@@ -434,6 +461,34 @@ string SubscriberRegistry::uintToString(uint32_t x)
 	return os.str();
 }
 
+SubscriberRegistry::Status SubscriberRegistry::authenticate(bool sip, string IMSI, uint64_t hRAND, uint64_t lRAND, uint32_t SRES)
+{
+	string strRAND = uintToString(hRAND, lRAND);
+	string strSRES = uintToString(SRES);
+	return authenticate(sip, IMSI, strRAND, strSRES);
+}
+
+
+SubscriberRegistry::Status SubscriberRegistry::authenticate(bool sip, string IMSI, string rand, string sres)
+{
+	if (IMSI.length() == 0) {
+		LOG(WARNING) << "SubscriberRegistry::authenticate attempting lookup of NULL IMSI";
+		return FAILURE;
+	}
+	LOG(INFO) << "authenticate(" << IMSI << "," << rand << "," << sres << ")";
+	HttpQuery qry("auth");
+	qry.send("imsi", IMSI);
+	qry.send("rand", rand);
+	qry.send("sres", sres);
+	qry.log();
+	if (!qry.http(sip)) return FAILURE;
+	const char *status = qry.receive("status");
+	if (strcmp(status, "SUCCESS") == 0) return SUCCESS;
+	if (strcmp(status, "FAILURE") == 0) return FAILURE;
+	// status is Kc
+	return SUCCESS;
+}
+
 
 
 bool SubscriberRegistry::useGateway(const char* ISDN)
@@ -446,6 +501,56 @@ bool SubscriberRegistry::useGateway(const char* ISDN)
 
 
 
+SubscriberRegistry::Status SubscriberRegistry::setPrepaid(const char *IMSI, bool yes)
+{
+	ostringstream os;
+	os << "update sip_buddies set prepaid = " << (yes ? 1 : 0)  << " where name = " << '"' << IMSI << '"';
+	return sqlUpdate(os.str().c_str());
+}
+
+
+SubscriberRegistry::Status SubscriberRegistry::isPrepaid(const char *IMSI, bool &yes)
+{
+	char *st = sqlQuery("prepaid", "sip_buddies", "name", IMSI);
+	if (!st) return FAILURE;
+	yes = *st == '1';
+	free(st);
+	return SUCCESS;
+}
+
+
+SubscriberRegistry::Status SubscriberRegistry::secondsRemaining(const char *IMSI, int &seconds)
+{
+	char *st = sqlQuery("secondsRemaining", "sip_buddies", "name", IMSI);
+	if (!st) return FAILURE;
+	seconds = (int)strtol(st, (char **)NULL, 10);
+	free(st);
+	return SUCCESS;
+}
+
+
+SubscriberRegistry::Status SubscriberRegistry::addSeconds(const char *IMSI, int secondsToAdd, int &wSecondsRemaining)
+{
+	ostringstream os;
+	os << "update sip_buddies set secondsRemaining = secondsRemaining + " << secondsToAdd << " where name = " << '"' << IMSI << '"';
+	if (sqlUpdate(os.str().c_str()) == FAILURE) return FAILURE;
+	int n;
+	if (secondsRemaining(IMSI, n) == FAILURE) return FAILURE;
+	if (n < 0) {
+		wSecondsRemaining = 0;
+	} else {
+		wSecondsRemaining = n;
+	}
+	return SUCCESS;
+}
+
+
+SubscriberRegistry::Status SubscriberRegistry::setSeconds(const char *IMSI, int seconds)
+{
+	ostringstream os;
+	os << "update sip_buddies set secondsRemaining = " << seconds << " where name = " << '"' << IMSI << '"';
+	return sqlUpdate(os.str().c_str());
+}
 
 
 HttpQuery::HttpQuery(const char *req)
@@ -567,12 +672,3 @@ const char *HttpQuery::receive(const char *label)
 
 
 // vim: ts=4 sw=4
-
-
-
-
-
-
-
-
-

@@ -247,6 +247,10 @@ class SMnet {
 	bool
 	parse_addr (const char *str, char *sockad, socklen_t maxlen, socklen_t *len);
 
+	bool
+	msg_is_from_relay(const char *srcaddr, socklen_t srcaddrlen,
+			  const char *relay_ip, const char *relay_port);
+
 	/*
 	 * Return a different random integer each time we are called.
 	 * They are all guaranteed to be positive numbers.

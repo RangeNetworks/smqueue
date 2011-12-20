@@ -23,7 +23,6 @@
 
 */
 
-
 #ifndef SubscriberRegistry_H
 #define SubscriberRegistry_H
 
@@ -116,16 +115,93 @@ class SubscriberRegistry {
 
 
 
+	/**
+		Get a 128-bit number for authentication.
+		@param sip sip server (true) or http
+		@param IMSI The user's IMSI or SIP username.
+		@return the 128-bit number in hex
+	*/
+	string getRandForAuthentication(bool sip, string IMSI);
+
+
+	/**
+		Get a 128-bit number for authentication.
+		@param sip sip server (true) or http
+		@param IMSI The user's IMSI or SIP username;
+		@param hRAND upper 64 bits
+		@param lRAND lower 64 bits
+	*/
+	bool getRandForAuthentication(bool sip, string IMSI, uint64_t *hRAND, uint64_t *lRAND);
+
 	void stringToUint(string strRAND, uint64_t *hRAND, uint64_t *lRAND);
 
 	string uintToString(uint64_t h, uint64_t l);
 
 	string uintToString(uint32_t x);
 
+	SubscriberRegistry::Status authenticate(bool sip, string IMSI, uint64_t hRAND, uint64_t lRAND, uint32_t SRES);
+
+
+
+	/**
+		Authenticate a handset.
+		@param sip sip server (true) or http
+		@param IMSI The user's IMSI or SIP username.
+		@param rand RAND.
+		@param sres SRES
+		@return ok or fail
+	*/
+	SubscriberRegistry::Status authenticate(bool sip, string IMSI, string rand, string sres);
+
 
 
 	bool useGateway(const char* ISDN);
 
+
+	/**
+		Set whether a subscriber is prepaid.
+		@param IMSI Subscriber's IMSI
+		@param yes true for prepaid, false for postpaid
+		@return SUCCESS or FAILURE
+	*/
+	Status setPrepaid(const char *IMSI, bool yes);
+
+
+	/**
+		Is a subscriber postpaid?
+		@param IMSI Subscriber's IMSI
+		@param yes set to true if subscriber is postpaid, false if prepaid
+		@return SUCCESS or FAILURE
+	*/
+	Status isPrepaid(const char *IMSI, bool &yes);
+
+
+	/**
+		Get the seconds remaining in a subscriber's account.
+		@param IMSI Subscriber's IMSI
+		@param seconds set to number of seconds remaining
+		@return SUCCESS or FAILURE
+	*/
+	Status secondsRemaining(const char *IMSI, int &seconds);
+
+
+	/**
+		Atomic operation to add seconds to subscriber's account and return remaining seconds
+		@param IMSI subscriber's IMSI
+		@param secondsToAdd seconds to add (negative to subtract)
+		@param secondsRemaining set to seconds remaining after addition
+		@return SUCCESS or FAILURE
+	*/
+	Status addSeconds(const char *IMSI, int secondsToAdd, int &secondsRemaining);
+
+
+	/**
+		Set the number of seconds in a subscriber's account
+		@param IMSI subscriber's IMSI
+		@param seconds number of seconds to which to set subscriber's account
+		@return SUCCESS or FAILURE
+	*/
+	Status setSeconds(const char *IMSI, int seconds);
 
 
 	private:

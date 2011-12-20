@@ -416,6 +416,41 @@ SMnet::string_addr (struct sockaddr *sa, socklen_t len, bool withport)
 	return ret;
 }
 
+bool SMnet::msg_is_from_relay(const char *srcaddr, socklen_t srcaddrlen,
+			      const char *relay_ip, const char *relay_port)
+{
+	bool is_from_relay = false;
+
+	struct addrinfo myhints;
+	struct addrinfo *myaddrs, *ap;
+	int s = 0;
+
+	// We are allowing relay_ip to be empty. If it is, this isn't from a relay.
+	if (!relay_ip || strlen(relay_ip) == 0) {
+		return false;
+	}
+
+	memset(&myhints, 0, sizeof(myhints));
+	myhints.ai_family = AF_UNSPEC;		// Any address family eg v4/6
+	myhints.ai_socktype = SOCK_DGRAM;	// Datagrams for now FIXME
+#ifdef AI_IDN
+	myhints.ai_flags = AI_IDN;		// Int'l dom names OK.
+#endif
+	s = getaddrinfo(relay_ip, relay_port, &myhints, &myaddrs);
+	if (!s) {
+		for (ap = myaddrs; ap != NULL; ap = ap->ai_next) {
+			if (ap->ai_addrlen == srcaddrlen &&
+				!memcmp(ap->ai_addr, srcaddr, srcaddrlen)) {
+				is_from_relay = true;
+				break;
+			}
+		}
+		freeaddrinfo(myaddrs);		// Don't leak memory.
+	}
+
+	return is_from_relay;
+}
+
 /* Parse printable IP address and port */
 bool
 SMnet::parse_addr (const char *str, char *sockad, socklen_t maxlen, socklen_t *len)

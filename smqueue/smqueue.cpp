@@ -487,7 +487,7 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 	
 	switch (qmsg->parsed->status_code / 100) {
 	case 1: // 1xx -- interim response
-		sent_msg->next_action_time = sent_msg->gettime() + 600;
+		// Ignore this response. We aren't supposed to receive it.
 		break;
 
 	case 2:	// 2xx -- success.
@@ -614,7 +614,7 @@ SMq::find_queued_msg_by_tag(short_msg_p_list::iterator &mymsg,
  * result is zero.
  */
 int
-short_msg_pending::validate_short_msg()
+short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 {
 	osip_message_t *p;
 	__node_t *plist;
@@ -631,6 +631,7 @@ short_msg_pending::validate_short_msg()
 
 	if (!parsed_is_valid) {
 		if (!parse()) {
+			LOG(DEBUG) << "Invalid parse";
 			return 400;
 		}
 	}
@@ -639,30 +640,42 @@ short_msg_pending::validate_short_msg()
 	   structure and contents.  */
 
 	p = parsed;
-	if (!p)			// this should really be an abort.
+	if (!p) {			// this should really be an abort.
+		LOG(DEBUG) << "Parse is NULL";
 		return 400;
+	}
 
-	if (!p->sip_version || 0 != strcmp("SIP/2.0", p->sip_version))
+	if (!p->sip_version || 0 != strcmp("SIP/2.0", p->sip_version)) {
+		LOG(DEBUG) << "Invalid SIP version";
 		return 400;
+	}
 	// If it's an ack, check some things.  If it's a message,
 	// check others.
 	if (MSG_IS_RESPONSE(p)) {
 		// It's an ack.
 		if (p->status_code < 0
-		    || !p->reason_phrase)
+		    || !p->reason_phrase) {
+			LOG(DEBUG) << "Status code invalid or no reason";
 			return 400;
+		}
 		clen = 0;
 		if (p->content_length && p->content_length->value) {
 			errno = 0;
 			clen = strtol(p->content_length->value, &endptr, 10);
-			if (*endptr != '\0' || errno != 0)
+			if (*endptr != '\0' || errno != 0) {
+				LOG(DEBUG) << "Invalid Content Length";
 				return 400;
+			}
 		}
-		if (clen != 0)
+		if (clen != 0) {
+			LOG(DEBUG) << "ACK has a content length";
 			return 400;	// Acks have no content!
+		}
 
-		if (p->bodies.nb_elt != 0)
+		if (p->bodies.nb_elt != 0) {
+			LOG(DEBUG) << "ACK has a body";
 			return 400;	// Acks have no bodies!
+		}
 	} else {
 		// It's a message.
 		if (!p->req_uri || !p->req_uri->scheme)
@@ -701,13 +714,16 @@ short_msg_pending::validate_short_msg()
 				return 413;	// "Request entity-body too large"
 			if (!p->cseq || !p->cseq->method
 			    || 0 != strcmp("MESSAGE", p->cseq->method)
-			    || !p->cseq->number)  // FIXME, validate number??
+			    || !p->cseq->number) {  // FIXME, validate number??
+				LOG(DEBUG) << "Invalid";
 				return 400;
+			}
 
 			// contacts -- cannot occur in SIP MESSAGE's
 			// or most response acks.
-			if (p->contacts.nb_elt)
-				return 400;
+			// DCK: As a stop gap, we are going to allow them.
+			/*if (p->contacts.nb_elt)
+				return 400;*/
 
 		} else if (0 == strcmp("REGISTER", p->sip_method)) {
 			// Null username is OK in register message.
@@ -715,8 +731,10 @@ short_msg_pending::validate_short_msg()
 			// Null message body also OK.
 			if (!p->cseq || !p->cseq->method
 			    || 0 != strcmp("REGISTER", p->cseq->method)
-			    || !p->cseq->number)  // FIXME, validate number??
+			    || !p->cseq->number) {  // FIXME, validate number??
+				LOG(DEBUG) << "Invalid REGISTER";
 				return 400;
+			}
 
 		} else {
 			return 405;	// Unknown SIP datagram type
@@ -730,8 +748,10 @@ short_msg_pending::validate_short_msg()
 	// allows - no restrictions?
 	// authentication_infos - no restrictions?
 	// authorizations - no restrictions
-	if (!p->call_id)
+	if (!p->call_id) {
+		LOG(DEBUG) << "No call-id";
 		return 400;
+	}
 	// call_infos - no restrictions
 	// content-encodings - FIXME - no restrictions?
 	clen = 0;
@@ -751,8 +771,10 @@ short_msg_pending::validate_short_msg()
 	// From: needs an extra element which is a message tag?  FIXME if wrong
 	if (!p->from || !p->from->url 
 	    || p->from->gen_params.nb_elt < 1
-	    || !p->from->gen_params.node)
+	    || !p->from->gen_params.node) {
+		LOG(DEBUG) << "Invalid From header";
 		return 400;
+	}
 	plist = (__node_t *) p->from->gen_params.node;
 	fromtag = NULL;
 	do {
@@ -762,8 +784,10 @@ short_msg_pending::validate_short_msg()
 			fromtag = param->gvalue;
 		plist = (__node_t *)plist->next;
 	} while (plist);
-	if (!fromtag)
+	if (!fromtag) {
+		LOG(DEBUG) << "No From tag";
 		return 400;
+	}
 	
 	if (!p->mime_version) {
 		;					// No mime version, OK
@@ -786,12 +810,28 @@ short_msg_pending::validate_short_msg()
     // (We don't really care -- we just ignore it anyway.)
 	    || p->to->gen_params.nb_elt != 0
 #endif
-                    )	// no tag field allowed; see
-						// RFC 3261 sec 8.1.1.2 
+                    ) {	// no tag field allowed; see
+		LOG(DEBUG) << "Invalid To header";	// RFC 3261 sec 8.1.1.2 
 		return 400;
+	}
 	user = p->to->url->username;
-	if (!check_to_user(user))
+	if (!check_to_user(user)) {
+		LOG(DEBUG) << "Invalid To user";
 		return 400;
+	}
+	// We need to see if this is a message form the relay. If it is, we can process a user lookup here
+	// BUT ONLY IF the message is not a response (ACK) AND MUST BE a SIP MESSAGE.
+	if (should_early_check && !MSG_IS_RESPONSE(p) && (0 == strcmp("MESSAGE", p->sip_method))
+		&& manager->my_network.msg_is_from_relay(srcaddr, srcaddrlen,
+		manager->global_relay.c_str(), manager->global_relay_port.c_str())) {
+		// We cannot deliver the message since we cannot resolve the TO
+		if (!manager->to_is_deliverable(user))
+			return 404;
+		// We need to reject the message, because we cannot resolve the FROM
+		// TODO: Don't do this. From coming in through the relay is probably not resolvable.
+		/*if (!manager->from_is_deliverable(p->from->url->username))
+			return 403;*/
+	}
 	// The spec wants Via: line even on acks, but do we care?  FIXME.
 	// if (p->vias.nb_elt < 1 || false) // ... FIXME )
 	//	return 400;
@@ -1135,7 +1175,7 @@ SMq::originate_sm(const char *from, const char *to, const char *msgtext,
 	response->make_text_valid();
 	response->unparse();
 	
-	errcode = response->validate_short_msg();
+	errcode = response->validate_short_msg(this, false);
 	if (!errcode) {
 		insert_new_message (*smpl, firststate);
 	}
@@ -1277,7 +1317,7 @@ SMq::register_handset (short_msg_p_list::iterator qmsg)
 	response->make_text_valid();
 	response->unparse();
 	
-	errcode = response->validate_short_msg();
+	errcode = response->validate_short_msg(this, false);
 	if (errcode) {
 		abfuckingort();		// Our msg should be valid
 	}
@@ -1400,11 +1440,6 @@ bool SMq::handle_short_code(const short_code_map_t &short_code_map,
 	return false;
 }
 
-void SMq::convert_message(short_msg_pending *qmsg, short_msg::ContentType toType)
-{
-	
-}
-
 /* Change the From address to a valid phone number in + countrycode phonenum
    format.  Also add a Via: line about us.  */
 enum sm_state
@@ -1468,6 +1503,7 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 
 	/* Username can be in various formats.  Check for formats that
 	   we know about.  Anything else we punt.  */
+	/* TODO: Check for tel BM2011 */
 	if (got_phone || username[0] == '+' || isdigit(username[0])) {
 		/* We have a phone number.  This is what we want.
 		   So we're done, and can move on to the next part
@@ -1512,10 +1548,11 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 		LOG(NOTICE) << "Lookup IMSI <" << username
 		     << "> to phonenum failed.";
 		LOG(DEBUG) << qmsg->text;
-		return bounce_message (qmsg,
-			gConfig.getStr("Bounce.Message.IMSILookupFailed").c_str()
-		);
+		//return bounce_message (qmsg,
+		//	gConfig.getStr("Bounce.Message.IMSILookupFailed").c_str()
+		//);
 		// return NO_STATE;	// Put it into limbo for debug.
+		return REQUEST_DESTINATION_IMSI;
 	}
 
 	/* We found it!  Translation done! 
@@ -1531,6 +1568,55 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 
 	free(newfrom);		// C interface uses free() not delete.
 	return REQUEST_DESTINATION_IMSI;
+}
+
+/* Check to see if we can directly route the message. Return true if we can. */
+bool SMq::to_is_deliverable(const char *to)
+{
+	bool isDeliverable = false;
+	char *newdest = my_hlr.getIMSI(to);
+	
+	if (newdest
+	 && 0 != strncmp("imsi", newdest, 4) 
+	 && 0 != strncmp("IMSI", newdest, 4)) {
+		free(newdest);
+		newdest = NULL;
+	}
+
+	isDeliverable = (newdest != NULL);
+
+	if (newdest)
+		free(newdest);
+
+	return isDeliverable;
+}
+
+/* Check to see if we know who the message is from. TODO: Uhhhhh... What if relay sends us a message. We don't know their from... */
+bool
+SMq::from_is_deliverable(const char *from)
+{
+	bool isDeliverable = false;
+	char *newdest = my_hlr.getCLIDLocal(from);
+
+	isDeliverable = (newdest != NULL);
+
+	if (newdest)
+		free(newdest);
+
+	return isDeliverable;
+}
+
+/* Requirement: parse() is called before calling this */
+bool
+SMq::convert_content_type(short_msg_pending *message, short_msg::ContentType to_type)
+{
+	LOG(DEBUG) << "Converting content type from " << message->content_type << " to " << to_type;
+
+	/*if ((to_type == short_msg::TEXT_PLAIN && message->content_type == short_msg::VND_3GPP_SMS) ||
+	    (to_type == short_msg::VND_3GPP_SMS && message->content_type == short_msg::TEXT_PLAIN)) {
+		message->convert_message(to_type);
+	}*/
+	message->convert_message(to_type);
 }
 
 /* Change the Request-URI's address to a valid IMSI.  */
@@ -1594,6 +1680,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 			|| !my_hlr.useGateway(username)) {
 			// There's no global relay -- or the HLR says not to
 			// use the global relay for it -- so send a bounce.
+			LOG(WARNING) << "no global relay defined; bouncing message intended for " << username;
 			return bounce_message (qmsg, gConfig.getStr("Bounce.Message.NotRegistered").c_str());
 		    } else {
 			// Send the message to our global relay.
@@ -1603,6 +1690,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 			//
 			// However, the From address is at this point the
 			// sender's local ph#.  Map it to the global ph#.
+			LOG(INFO) << "using global SIP relay " << global_relay << " to route message to " << username;
 			char *newfrom;
 			newfrom = my_hlr.mapCLIDGlobal(
 					qmsg->parsed->from->url->username);
@@ -1611,7 +1699,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 				qmsg->parsed->from->url->username = 
 					osip_strdup (newfrom);
 			}
-			convert_message(qmsg, short_msg::TEXT_PLAIN); // TODO: Error check here. What to do on error?
+			convert_content_type(qmsg, global_relay_contenttype);
 			return REQUEST_DESTINATION_SIPURL;
 		    }
 		}
@@ -1676,24 +1764,24 @@ SMq::lookup_uri_hostport (short_msg_pending *qmsg)
 	   we know about.  Anything else we punt.  */
 	if (imsi[0] == '+' || (0 != strncmp("imsi", imsi, 4)
 			    && 0 != strncmp("IMSI", imsi, 4))) {
+		LOG(DEBUG) << "We have a number: " << imsi;
+
 		// We have a phone number.  It needs translation.
-		newport = NULL;
+		newport = strdup(global_relay_port.c_str());
 		newhost = strdup(global_relay.c_str());
 	} else {
 		/* imsi is an IMSI at this point.  */
-
+		LOG(DEBUG) << "We have an IMSI: " << imsi;
 		newport = NULL;
 		newhost = my_hlr.getRegistrationIP (imsi);
 	}
 
-	if (newhost) {
+	LOG(DEBUG) << "We are going to try to send to " << newhost << " on " << newport;
+
+	if (newhost && newport == NULL) {
 		// Break up returned "host:port" string.
 		char *colon = strchr(newhost,':');
-		if (!colon) {
-			free(newhost);
-			newhost = NULL;
-			newport = NULL;
-		} else {
+		if (colon) {
 			newport = strdup(colon+1);
 			*colon = '\0';
 		}
@@ -1704,8 +1792,11 @@ SMq::lookup_uri_hostport (short_msg_pending *qmsg)
 		newhost = strdup((char *)"127.0.0.1");
 	}
 	if (!newport) {
-		newport = strdup((char *)"5062");
+		newport = strdup((char*)gConfig.getStr("SIP.Default.BTSPort").c_str()); //(char *)"5062");
 	}
+
+
+	LOG(DEBUG) << "We will send to " << newhost << " on " << newport;
 
 	/* We found it!  Translation done! 
 	   Now the dance of freeing the old ones and
@@ -1743,15 +1834,15 @@ SMq::lookup_uri_hostport (short_msg_pending *qmsg)
 
 	//rfc 3261 relaxes this, don't require host -kurtis
 	if (osip_call_id_get_host (qmsg->parsed->call_id)){
-		if (0 != strcmp(myhost, 
-				osip_call_id_get_host (qmsg->parsed->call_id))) {
-			osip_free (osip_call_id_get_host (qmsg->parsed->call_id));
+		if (0 != strcmp(myhost,
+				osip_call_id_get_host(qmsg->parsed->call_id))) {
+			osip_free (osip_call_id_get_host(qmsg->parsed->call_id));
 			p = (char *)osip_malloc (strlen(myhost)+1);
 			strcpy(p, myhost);
 			osip_call_id_set_host (qmsg->parsed->call_id, p);
 			qmsg->parsed_was_changed();
 		}
-	}
+ 	}
 
 	if (0 != strcmp(mycallnum,
 		 	osip_call_id_get_number (qmsg->parsed->call_id))) {
@@ -1958,7 +2049,7 @@ SMq::main_loop()
 			       my_network.recvaddrlen);
 		}
 
-		errcode = smp->validate_short_msg();
+		errcode = smp->validate_short_msg(this, true);
 		if (errcode == 0) {
 			if (MSG_IS_REQUEST(smp->parsed)) {
 				LOG(NOTICE) << "Got SMS '"
@@ -2147,7 +2238,7 @@ SMq::read_queue_from_file(std::string qfile)
 		if (!my_network.parse_addr(netaddrstr.c_str(), smp->srcaddr, sizeof(smp->srcaddr), &smp->srcaddrlen))
 			abfuckingort();
 
-		errcode = smp->validate_short_msg();
+		errcode = smp->validate_short_msg(this, false);
 		if (errcode == 0) {
 			if (MSG_IS_REQUEST(smp->parsed)) {
 				LOG(INFO) << "Read SMS '"
@@ -2272,9 +2363,13 @@ main(int argc, char **argv)
 
     // IP address:port of the global relay where we sent SIP messages
     // if we don't know where else to send them.
-    smq.set_global_relay(gConfig.getStr("SIP.GlobalRelay.IP").c_str(), 
-                         gConfig.getNum("SIP.GlobalRelay.Port", 5040),
-                         gConfig.getStr("SIP.GlobalRelay.ContentType").c_str());
+    if (gConfig.defines("SIP.GlobalRelay.IP")) {
+        smq.set_global_relay(gConfig.getStr("SIP.GlobalRelay.IP").c_str(), 
+                             gConfig.getStr("SIP.GlobalRelay.Port").c_str(),
+                             gConfig.getStr("SIP.GlobalRelay.ContentType").c_str());
+    } else {
+        smq.set_global_relay("", "", "");
+    }
 
     // IP address of our own smqueue, as seen from outside.
     smq.set_my_ipaddress(gConfig.getStr("SIP.myIP" /* "127.0.0.1" */).c_str());
