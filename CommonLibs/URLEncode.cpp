@@ -1,5 +1,7 @@
-/* Copyright 2011, Range Networks, Inc. */
 /*
+* Copyright 2011 Free Software Foundation, Inc.
+*
+*
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
 *
@@ -20,7 +22,6 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
-
 
 #include <URLEncode.h>
 #include <string>

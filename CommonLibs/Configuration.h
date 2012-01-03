@@ -79,13 +79,13 @@ class ConfigurationRecord {
 
 	ConfigurationRecord(const std::string& wValue):
 		mValue(wValue),
-		mNumber(strtol(wValue.c_str(),NULL,10)),
+		mNumber(strtol(wValue.c_str(),NULL,0)),
 		mDefined(true)
 	{ }
 
 	ConfigurationRecord(const char* wValue):
 		mValue(std::string(wValue)),
-		mNumber(strtol(wValue,NULL,10)),
+		mNumber(strtol(wValue,NULL,0)),
 		mDefined(true)
 	{ }
 
@@ -248,6 +248,9 @@ class ConfigurationTable {
 
 	/** Define the callback to purge the cache whenever the database changes. */
 	void setUpdateHook(void(*)(void *,int ,char const *,char const *,sqlite3_int64));
+
+	/** purege cache if it exceeds a certain age */
+	void checkCacheAge();
 
 	/** Delete all records from the cache. */
 	void purge();

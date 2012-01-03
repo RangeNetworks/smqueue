@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2011 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
@@ -99,6 +99,8 @@ class ScopedLock {
 };
 
 
+
+
 /** A C++ interthread signal based on pthread condition variables. */
 class Signal {
 
@@ -108,7 +110,7 @@ class Signal {
 
 	public:
 
-	Signal() { assert(!pthread_cond_init(&mSignal,NULL)); }
+	Signal() { int s = pthread_cond_init(&mSignal,NULL); assert(!s); }
 
 	~Signal() { pthread_cond_destroy(&mSignal); }
 
@@ -156,14 +158,14 @@ class Thread {
 		Destroy the Thread.
 		It should be stopped and joined.
 	*/
-	~Thread() { assert(!pthread_attr_destroy(&mAttrib)); }
+	~Thread() { pthread_attr_destroy(&mAttrib); }
 
 
 	/** Start the thread on a task. */
 	void start(void *(*task)(void*), void *arg);
 
 	/** Join a thread that will stop on its own. */
-	void join() { assert(!pthread_join(mThread,NULL)); }
+	void join() { int s = pthread_join(mThread,NULL); assert(!s); }
 
 };
 

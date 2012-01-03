@@ -1,6 +1,5 @@
 /*
 * Copyright 2008, 2010 Free Software Foundation, Inc.
-* Copyright 2011 Range Networks, Inc.
 *
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.

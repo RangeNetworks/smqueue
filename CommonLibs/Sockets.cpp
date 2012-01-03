@@ -1,6 +1,6 @@
 /*
 * Copyright 2008, 2010 Free Software Foundation, Inc.
-* Copyright 2011 Range Networks, Inc.
+*
 *
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
@@ -40,14 +40,16 @@
 #include <stdlib.h>
 
 
-
-
-
+//mutex for protecting non-thread safe gethostbyname
+static Mutex sgGethostbynameLock;
 
 bool resolveAddress(struct sockaddr_in *address, const char *hostAndPort)
 {
+	assert(address);
+	assert(hostAndPort);
 	char *copy = strdup(hostAndPort);
 	char *colon = strchr(copy,':');
+	if (!colon) return false;
 	*colon = '\0';
 	char *host = copy;
 	unsigned port = strtol(colon+1,NULL,10);
@@ -58,6 +60,10 @@ bool resolveAddress(struct sockaddr_in *address, const char *hostAndPort)
 
 bool resolveAddress(struct sockaddr_in *address, const char *host, unsigned short port)
 {
+	assert(address);
+	assert(host);
+	//gethostbyname not thread safe
+	ScopedLock lock(sgGethostbynameLock);
 	// FIXME -- Need to ignore leading/trailing spaces in hostname.
 	struct hostent *hp = gethostbyname(host);
 	if (hp==NULL) {

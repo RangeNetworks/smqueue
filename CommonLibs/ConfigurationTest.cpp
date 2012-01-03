@@ -1,6 +1,7 @@
 /*
-* Copyright 2009 Free Software Foundation, Inc.
+* Copyright 2009, 2010 Free Software Foundation, Inc.
 * Copyright 2010 Kestrel Signal Processing, Inc.
+*
 *
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
@@ -60,7 +61,7 @@ int main(int argc, char *argv[])
 		cout << "defined table[" << keys[i] << "]=" << gConfig.defines(keys[i]) <<  endl;
 	}
 
-	gConfig.set("key5","100 200 300  400 ");
+	gConfig.set("key5","100 200 300 400");
 	std::vector<unsigned> vect = gConfig.getVector("key5");
 	cout << "vect length " << vect.size() << ": ";
 	for (unsigned i=0; i<vect.size(); i++) cout << " " << vect[i];

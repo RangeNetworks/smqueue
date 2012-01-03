@@ -1,6 +1,5 @@
 #
 # Copyright 2008, 2009 Free Software Foundation, Inc.
-# Copyright 2011 Range Networks, Inc.
 #
 # This software is distributed under the terms of the GNU Public License.
 # See the COPYING file in the main directory for details.
@@ -22,11 +21,7 @@
 include $(top_srcdir)/Makefile.common
 
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
-AM_CXXFLAGS = -Wall -O3 -g -ldl -lpthread
-
-EXTRA_DIST = \
-	example.config \
-	README.common
+AM_CXXFLAGS = -Wall -ldl -O3 -g -lpthread
 
 noinst_LTLIBRARIES = libcommon.la
 
@@ -49,7 +44,6 @@ noinst_PROGRAMS = \
 	VectorTest \
 	ConfigurationTest \
 	LogTest \
-	URLEncodeTest \
 	F16Test
 
 noinst_HEADERS = \
@@ -61,13 +55,10 @@ noinst_HEADERS = \
 	Timeval.h \
 	Regexp.h \
 	Vector.h \
+	URLEncode.h \
 	Configuration.h \
 	F16.h \
-	URLEncode.h \
 	Logger.h
-
-URLEncodeTest_SOURCES = URLEncodeTest.cpp
-URLEncodeTest_LDADD = libcommon.la
 
 BitVectorTest_SOURCES = BitVectorTest.cpp
 BitVectorTest_LDADD = libcommon.la

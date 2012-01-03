@@ -3,6 +3,7 @@
 * Copyright 2010 Kestrel Signal Processing, Inc.
 * Copyright 2011 Range Networks, Inc.
 *
+*
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
 *
@@ -29,6 +30,7 @@
 #include <fstream>
 #include <iostream>
 #include <string.h>
+#include <syslog.h>
 
 using namespace std;
 
@@ -68,6 +70,7 @@ bool ConfigurationTable::defines(const string& key)
 	ScopedLock lock(mLock);
 
 	// Check the cache.
+	checkCacheAge();
 	ConfigurationMap::const_iterator where = mCache.find(key);
 	if (where!=mCache.end()) return where->second.defined();
 
@@ -90,6 +93,7 @@ bool ConfigurationTable::defines(const string& key)
 const ConfigurationRecord& ConfigurationTable::lookup(const string& key)
 {
 	assert(mDB);
+	checkCacheAge();
 	// We assume the caller holds mLock.
 	// So it is OK to return a reference into the cache.
 
@@ -100,6 +104,7 @@ const ConfigurationRecord& ConfigurationTable::lookup(const string& key)
 		if (where->second.defined()) return where->second;
 		// Unlock the mutex before throwing the exception.
 		mLock.unlock();
+		syslog(LOG_ALERT, "configuration key %s not found", key.c_str());
 		throw ConfigurationTableKeyNotFound(key);
 	}
 
@@ -201,7 +206,7 @@ std::vector<unsigned> ConfigurationTable::getVector(const string& key)
 		// Watch for multiple or trailing spaces.
 		while (*lp==' ') lp++;
 		if (*lp=='\0') break;
-		retVal.push_back(strtol(lp,NULL,10));
+		retVal.push_back(strtol(lp,NULL,0));
 		strsep(&lp," ");
 	}
 	free(line);
@@ -277,6 +282,25 @@ bool ConfigurationTable::set(const string& key)
 	bool success = sqlite3_command(mDB,cmd.c_str());
 	if (success) mCache[key] = ConfigurationRecord(true);
 	return success;
+}
+
+
+void ConfigurationTable::checkCacheAge()
+{
+	// mLock is set by caller 
+	static time_t timeOfLastPurge = 0;
+	time_t now = time(NULL);
+	// purge every 3 seconds
+	// purge period cannot be configuration parameter
+	if (now - timeOfLastPurge < 3) return;
+	timeOfLastPurge = now;
+	// this is purge() without the lock
+	ConfigurationMap::iterator mp = mCache.begin();
+	while (mp != mCache.end()) {
+		ConfigurationMap::iterator prev = mp;
+		mp++;
+		mCache.erase(prev);
+	}
 }
 
 
