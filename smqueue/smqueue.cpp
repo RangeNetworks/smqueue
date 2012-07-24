@@ -59,6 +59,9 @@ ConfigurationTable gConfig("/etc/OpenBTS/smqueue.db");
 #define RT	600	/* seconds = 5 minutes - "Re Try" - for state
 			   transitions where we're starting over from
 			   scratch due to some error. */
+#define TT	60      /* the amount of time we add to a transaction
+			    when we get a 100 TRYING message */
+
 /* Timeout when moving from this state to new state:
  NS  IS  RF  AF   WD  RD  AD   WS  RS  AS   WM  RM  AM   DM   WR  RH  AR  */
 int timeouts_NO_STATE[STATE_MAX_PLUS_ONE] = {
@@ -487,7 +490,10 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 	
 	switch (qmsg->parsed->status_code / 100) {
 	case 1: // 1xx -- interim response
-		// Ignore this response. We aren't supposed to receive it.
+		//While a 100 doesn't mean anything really, 
+		//we should increase the timeout because 
+		//we know the network worked
+		sent_msg->set_state(sent_msg->state, sent_msg->gettime() + TT);
 		break;
 
 	case 2:	// 2xx -- success.
