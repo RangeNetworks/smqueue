@@ -182,7 +182,8 @@ void create_sms_delivery(const std::string &body,
 {
 	RPData *rp_data_new = NULL;
 	TLDeliver *deliver = NULL;
-	const char *from = smsg->parsed->from->url->username;
+	const char *from = smsg->parsed->from->displayname;
+	//const char *from = smsg->parsed->from->url->username;
 
 	unsigned TLPID = ((TLSubmit*)smsg->tl_message)->PI(); //TP-PID
 	if (TLPID != 0x40) TLPID = 0; //just to be safe
@@ -197,6 +198,7 @@ void create_sms_delivery(const std::string &body,
 	{
 		unsigned reference = random() % 255;
 		deliver = new TLDeliver(from,UD,TLPID);
+		LOG(DEBUG) << "New TLDeliver: " << *deliver;
 		rp_data_new = new RPData(reference, RPAddress(gConfig.getStr("SMS.FakeSrcSMSC").c_str()),
 		                         *deliver);
 		LOG(DEBUG) << "New RPData: " << *rp_data_new;

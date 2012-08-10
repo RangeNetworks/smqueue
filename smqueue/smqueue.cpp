@@ -1565,11 +1565,16 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 	   Now the dance of freeing the old name and
 	   inserting new name.  */
 	char *p;
+	char *q;
 
 	osip_free (qmsg->parsed->from->url->username);
+	osip_free (qmsg->parsed->from->displayname);
 	p = (char *)osip_malloc (strlen(newfrom)+1);
+	q = (char *)osip_malloc (strlen(newfrom)+1);
 	strcpy(p, newfrom);
+	strcpy(q, newfrom);
 	qmsg->parsed->from->url->username = p;
+	qmsg->parsed->from->displayname = q;
 	qmsg->parsed_was_changed();
 
 	free(newfrom);		// C interface uses free() not delete.
