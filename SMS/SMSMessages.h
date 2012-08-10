@@ -340,13 +340,14 @@ class TLSubmit : public TLMessage {
 	TLAddress mDA;			///< destination address
 	unsigned mPI;			///< protocol identifier
 	unsigned mDCS;			///< data coding scheme
-	TLValidityPeriod mVP;	///< validity period
+	TLValidityPeriod mVP;		///< validity period
 	TLUserData mUD;			///< user data
 
 	public:
 
 	int MTI() const { return SUBMIT; }
 
+	const unsigned PI() const { return mPI; }
 	const TLAddress& DA() const { return mDA; }
 	const TLUserData& UD() const { return mUD; }
 

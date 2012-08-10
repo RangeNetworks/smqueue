@@ -184,11 +184,13 @@ void create_sms_delivery(const std::string &body,
 	TLDeliver *deliver = NULL;
 	const char *from = smsg->parsed->from->url->username;
 
+	unsigned TLPID = ((TLSubmit*)smsg->tl_message)->PI(); //TP-PID
+	if (TLPID != 0x40) TLPID = 0; //just to be safe
+
 	// HACK
 	// Check for "Easter Eggs"
 	// TL-PID
 	// See 03.40 9.2.3.9.
-	unsigned TLPID=0;
 	if (strncmp(body.data(),"#!TLPID",7)==0) sscanf(body.data(),"#!TLPID%d",&TLPID);
 
 	// Generate RP-DATA with SMS-DELIVER
