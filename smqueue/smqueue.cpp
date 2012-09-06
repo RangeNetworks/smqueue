@@ -1462,6 +1462,10 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 	if (!username) { LOG(ERR) << "no username"; return NO_STATE; }
 	
 	if (!host) { LOG(ERR) << "no hostname"; return NO_STATE; }
+
+	/* disabled by Kurtis, as the sender's hostname is no way to 
+	   determine if it's a phone number or not */
+	/*
 	if (0 != strcmp("127.0.0.1", host)
  	 && 0 != strcmp("localhost", host)
  	 && 0 != strcmp(my_ipaddress.c_str(), host)
@@ -1492,6 +1496,7 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 		qmsg->parsed->from->url->host = osip_strdup (my_ipaddress.c_str());
 		got_phone = true;
 	}
+	*/
 
 	// Insert a Via: line describing us, this makes us easier to trace,
 	// and also allows a remote SIP agent to reply to us.  (Maybe?)
