@@ -185,8 +185,11 @@ void create_sms_delivery(const std::string &body,
 	const char *from = smsg->parsed->from->displayname;
 	//const char *from = smsg->parsed->from->url->username;
 
-	unsigned TLPID = ((TLSubmit*)smsg->tl_message)->PI(); //TP-PID
-	if (TLPID != 0x40) TLPID = 0; //just to be safe
+       unsigned TLPID = 0;
+       if (smsg->tl_message!=NULL) {
+               TLPID = ((TLSubmit*)smsg->tl_message)->PI(); //TP-PID
+               if (TLPID != 0x40) TLPID = 0; //just to be safe
+       }
 
 	// HACK
 	// Check for "Easter Eggs"
