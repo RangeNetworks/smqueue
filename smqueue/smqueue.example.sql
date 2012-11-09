@@ -15,6 +15,7 @@ INSERT INTO "CONFIG" VALUES('Debug.print_as_we_validate','',0,1,'');
 INSERT INTO "CONFIG" VALUES('SIP.GlobalRelay.IP',NULL,1,0,'IP address of global relay to send unresolvable messages to. NULL disables the gateway.');
 INSERT INTO "CONFIG" VALUES('SIP.GlobalRelay.Port','',1,0,'Port of global relay to send unresolvable messages to.');
 INSERT INTO "CONFIG" VALUES('SIP.GlobalRelay.ContentType','application/vnd.3gpp.sms',1,0,'The content type that the global relay expects. text/plain and application/vnd.3gpp.sms are the only valid options.');
+INSERT INTO "CONFIG" VALUES('SIP.Timeout.MessageResend','15',1,1,'Timeout, in seconds, between message sending tries.');
 INSERT INTO "CONFIG" VALUES('SMS.FakeSrcSMSC','0000',0,0,'Use this to fill in L4 SMSC address in SMS delivery.');
 INSERT INTO "CONFIG" VALUES('SMS.HTTPGateway.URL',NULL,0,1,'URL for HTTP API.  Used directly as a C format string with two "%s" substitutions..  First "%s" gets replaced with the destination number.  Second "%s" gets replaced with the URL-endcoded message body.');
 INSERT INTO "CONFIG" VALUES('SMS.HTTPGateway.Timeout',5,0,1,'Timeout for HTTP gateway attempt in seconds.  If SMS.HTTPGateway.URL is defined, this must also be defined."');

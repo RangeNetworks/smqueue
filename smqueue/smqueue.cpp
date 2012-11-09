@@ -88,7 +88,7 @@ int timeouts_AWAITING_TRY_MSG_DELIVERY[STATE_MAX_PLUS_ONE] = {
   0, NT, RT, NT,  RT, NT, NT,  NT, NT, NT,  75,  0, NT,   0,  NT, NT, NT,};
 int timeouts_REQUEST_MSG_DELIVERY[STATE_MAX_PLUS_ONE] = {
 //  0, NT, RT, NT,  RT, NT, NT,  NT, 75, NT,  75, 75, 15,   0,  NT, NT, NT,};
-  0, NT, RT, NT,  RT, NT, NT,  NT,  5, NT,  75, 75, 15,   0,  NT, NT, NT,};
+  0, NT, RT, NT,  RT, NT, NT,  NT,  15, NT,  75, 75, 15,   0,  NT, NT, NT,};
 int timeouts_ASKED_FOR_MSG_DELIVERY[STATE_MAX_PLUS_ONE] = {
   0, NT, RT, NT,  NT, NT, NT,  NT, NT, NT,  60, 10, NT,   0,  NT, NT, NT,};
 int timeouts_DELETE_ME_STATE[STATE_MAX_PLUS_ONE] = {
@@ -2362,6 +2362,10 @@ main(int argc, char **argv)
    gLogInit("smqueue",gConfig.getStr("Log.Level").c_str(),LOG_LOCAL7);
    LOG(ALERT) << "smqueue (re)starting";
    cout << "smqueue logs to syslogd facility LOCAL7, so there's not much to see here" << endl;
+
+   if (gConfig.defines("SIP.Timeout.MessageResend")) {
+      timeouts_REQUEST_MSG_DELIVERY[REQUEST_DESTINATION_SIPURL] = gConfig.getNum("SIP.Timeout.MessageResend");
+   }
 
    // This is for realtime config changes.
    // smqueue doesn't use it.
