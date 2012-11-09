@@ -33,7 +33,7 @@
 #include <iostream>
 
 #include "smnet.h"			// My network support
-#include "HLR.h"			// My home location register
+#include "SubscriberRegistry.h"                // My home location register
 
 // That's awful OSIP has a CR define.
 // It clashes with our innocent L2Address::CR().
@@ -769,6 +769,7 @@ class SMq {
 		stop_main_loop (false),
 		reexec_smqueue (false)
 	{
+		my_hlr.init();
 	}
 
 	// Override operator= so -Weffc++ doesn't complain

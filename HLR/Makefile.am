@@ -31,13 +31,13 @@ EXTRA_DIST = \
 noinst_LTLIBRARIES = libHLR.la
 
 libHLR_la_SOURCES = \
-	HLR.cpp
+       SubscriberRegistry.cpp
 
 noinst_PROGRAMS = \
 	HLRTest
 
 noinst_HEADERS = \
-	HLR.h
+       SubscriberRegistry.h
 
 HLRTest_LDADD =  libHLR.la $(COMMON_LA) $(SQLITE_LA)
 HLRTest_SOURCES = HLRTest.cpp

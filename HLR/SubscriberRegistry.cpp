@@ -1,23 +1,29 @@
 /*
-* Copyright 2011 Free Software Foundation, Inc.
+* Copyright 2011 Kestrel Signal Processing, Inc.
+* Copyright 2011, 2012  Range Networks, Inc.
 *
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- * See the COPYING file in the main directory for details.
- */
+* This software is distributed under the terms of the GNU Affero Public License.
+* See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
-#include "HLR.h"
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#include "SubscriberRegistry.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -48,9 +54,16 @@ static const char* createRRLPTable = {
 static const char* createDDTable = {
     "CREATE TABLE IF NOT EXISTS DIALDATA_TABLE ("
 		"id				INTEGER PRIMARY KEY, "
-		"exten           VARCHAR(40)     NOT NULL        DEFAULT '', "
-		"dial			VARCHAR(128)    NOT NULL        DEFAULT '' "
+		"exten           VARCHAR(40)     UNIQUE NOT NULL, "
+		"dial			VARCHAR(128)    NOT NULL "
     ")"
+};
+
+static const char* createRateTable = {
+"create table if not exists rate ("
+	"service varchar(30) unique not null, "
+	"rate integer not null"
+")"
 };
 
 static const char* createSBTable = {
@@ -65,7 +78,7 @@ static const char* createSBTable = {
 		"md5secret             VARCHAR(80), "
 		"remotesecret          VARCHAR(250), "
 		"transport             VARCHAR(10), "
-		"host                  VARCHAR(31) default '' not null, "
+		"host                  VARCHAR(31) default 'dynamic' not null, "
 		"nat                   VARCHAR(5) DEFAULT 'no' not null, "
 		"type                  VARCHAR(10) DEFAULT 'friend' not null, "
 		"accountcode           VARCHAR(20), "
@@ -73,7 +86,7 @@ static const char* createSBTable = {
 		"callgroup             VARCHAR(10), "
 		"callerid              VARCHAR(80), "
 		"defaultip             VARCHAR(40) DEFAULT '0.0.0.0', "
-		"dtmfmode              VARCHAR(7) DEFAULT 'rfc2833', "
+		"dtmfmode              VARCHAR(7) DEFAULT 'info', "
 		"fromuser              VARCHAR(80), "
 		"fromdomain            VARCHAR(80), "
 		"insecure              VARCHAR(4), "
@@ -86,11 +99,11 @@ static const char* createSBTable = {
 		"rtpholdtimeout        CHAR(3), "
 		"setvar                VARCHAR(100), "
 		"disallow              VARCHAR(100) DEFAULT 'all', "
-		"allow                 VARCHAR(100) DEFAULT 'g729;ilbc;gsm;ulaw;alaw' not null, "
+		"allow                 VARCHAR(100) DEFAULT 'gsm' not null, "
 		"fullcontact           VARCHAR(80), "
 		"ipaddr                VARCHAR(45), "
-		"port                  int(5) DEFAULT 0, "
-		"username              VARCHAR(80), "
+		"port                  int(5) DEFAULT 5062, "
+		"username              VARCHAR(80) unique not null, "
 		"defaultuser           VARCHAR(80), "
 		"subscribecontext      VARCHAR(80), "
 		"directmedia           VARCHAR(3), "
@@ -100,10 +113,10 @@ static const char* createSBTable = {
 		"promiscredir          VARCHAR(3), "
 		"useclientcode         VARCHAR(3), "
 		"callcounter           VARCHAR(3), "
-		"busylevel             int(11), "
-		"allowoverlap          VARCHAR(3) DEFAULT 'yes', "
-		"allowsubscribe        VARCHAR(3) DEFAULT 'yes', "
-		"allowtransfer         VARCHAR(3) DEFAULT 'yes', "
+		"busylevel             int(11) default 1, "
+		"allowoverlap          VARCHAR(3) DEFAULT 'no', "
+		"allowsubscribe        VARCHAR(3) DEFAULT 'no', "
+		"allowtransfer         VARCHAR(3) DEFAULT 'no', "
 		"ignoresdpversion      VARCHAR(3) DEFAULT 'no', "
 		"template              VARCHAR(100), "
 		"videosupport          VARCHAR(6) DEFAULT 'no', "
@@ -127,11 +140,11 @@ static const char* createSBTable = {
 		"regseconds            int(11) DEFAULT 0 not null, "
 		"useragent             VARCHAR(100), "
 		"cancallforward        CHAR(3) DEFAULT 'yes' not null, "
-		"canreinvite           CHAR(3) DEFAULT 'yes' not null, "
+		"canreinvite           CHAR(3) DEFAULT 'no' not null, "
 		"mask                  VARCHAR(95), "
 		"musiconhold           VARCHAR(100), "
 		"restrictcid           CHAR(3), "
-		"calllimit             int(5), "
+		"calllimit             int(5) default 1, "
 		"WhiteListFlag         timestamp not null default '0', "
 		"WhiteListCode         varchar(8) not null default '0', "
 		"rand                  varchar(33) default '', "
@@ -141,37 +154,60 @@ static const char* createSBTable = {
 		"prepaid               int(1) DEFAULT 0 not null, "
 		"secondsRemaining      int(11) DEFAULT 0 not null, "
 		"RRLPSupported         int(1) default 1 not null, "
+  		"hardware              VARCHAR(20), "
 		"regTime               INTEGER default 0 NOT NULL, " // Unix time of most recent registration
 		"a3_a8                 varchar(45) default NULL"
     ")"
 };
 
 
-SubscriberRegistry::SubscriberRegistry()
+int SubscriberRegistry::init()
 {
 	string ldb = gConfig.getStr("SubscriberRegistry.db");
+	size_t p = ldb.find_last_of('/');
+	if (p == string::npos) {
+		LOG(EMERG) << "SubscriberRegistry.db not in a directory?";
+		mDB = NULL;
+		return 1;
+	}
+	string dir = ldb.substr(0, p);
+	struct stat buf;
+	if (stat(dir.c_str(), &buf)) {
+		LOG(EMERG) << dir << " does not exist";
+		mDB = NULL;
+		return 1;
+	} 
 	int rc = sqlite3_open(ldb.c_str(),&mDB);
 	if (rc) {
 		LOG(EMERG) << "Cannot open SubscriberRegistry database: " << sqlite3_errmsg(mDB);
 		sqlite3_close(mDB);
 		mDB = NULL;
-		return;
+		return 1;
 	}
     if (!sqlite3_command(mDB,createRRLPTable)) {
         LOG(EMERG) << "Cannot create RRLP table";
+        return 1;
     }
     if (!sqlite3_command(mDB,createDDTable)) {
         LOG(EMERG) << "Cannot create DIALDATA_TABLE table";
+        return 1;
+    }
+    if (!sqlite3_command(mDB,createRateTable)) {
+        LOG(EMERG) << "Cannot create rate table";
+        return 1;
     }
     if (!sqlite3_command(mDB,createSBTable)) {
         LOG(EMERG) << "Cannot create SIP_BUDDIES table";
+        return 1;
     }
 	if (!getCLIDLocal("IMSI001010000000000")) {
 		// This is a test SIM provided with the BTS.
 		if (addUser("IMSI001010000000000", "2100") != SUCCESS) {
 			LOG(EMERG) << "Cannot insert test SIM";
+            return 1;
 		}
 	}
+    return 0;
 }
 
 
@@ -292,7 +328,7 @@ char *SubscriberRegistry::getCLIDLocal(const char* IMSI)
 		return NULL;
 	}
 	LOG(INFO) << "getCLIDLocal(" << IMSI << ")";
-	return sqlQuery("callerid", "sip_buddies", "name", IMSI);
+	return sqlQuery("callerid", "sip_buddies", "username", IMSI);
 }
 
 
@@ -304,7 +340,7 @@ char *SubscriberRegistry::getCLIDGlobal(const char* IMSI)
 		return NULL;
 	}
 	LOG(INFO) << "getCLIDGlobal(" << IMSI << ")";
-	return sqlQuery("callerid", "sip_buddies", "name", IMSI);
+	return sqlQuery("callerid", "sip_buddies", "username", IMSI);
 }
 
 
@@ -316,7 +352,7 @@ char *SubscriberRegistry::getRegistrationIP(const char* IMSI)
 		return NULL;
 	}
 	LOG(INFO) << "getRegistrationIP(" << IMSI << ")";
-	return sqlQuery("ipaddr", "sip_buddies", "name", IMSI);
+	return sqlQuery("ipaddr", "sip_buddies", "username", IMSI);
 }
 
 
@@ -329,7 +365,7 @@ SubscriberRegistry::Status SubscriberRegistry::setRegTime(const char* IMSI)
 	}
 	unsigned now = (unsigned)time(NULL);
 	ostringstream os;
-	os << "update sip_buddies set regTime = " << now  << " where name = " << '"' << IMSI << '"';
+	os << "update sip_buddies set regTime = " << now  << " where username = " << '"' << IMSI << '"';
 	return sqlUpdate(os.str().c_str());
 }
 
@@ -347,7 +383,7 @@ SubscriberRegistry::Status SubscriberRegistry::addUser(const char* IMSI, const c
 	}
 	LOG(INFO) << "addUser(" << IMSI << "," << CLID << ")";
 	ostringstream os;
-	os << "insert into sip_buddies (name, username, type, context, host, callerid, canreinvite, allow, dtmfmode, ipaddr) values (";
+	os << "insert into sip_buddies (name, username, type, context, host, callerid, canreinvite, allow, dtmfmode, ipaddr, port) values (";
 	os << "\"" << IMSI << "\"";
 	os << ",";
 	os << "\"" << IMSI << "\"";
@@ -367,6 +403,8 @@ SubscriberRegistry::Status SubscriberRegistry::addUser(const char* IMSI, const c
 	os << "\"" << "info" << "\"";
 	os << ",";
 	os << "\"" << "127.0.0.1" << "\"";
+	os << ",";
+	os << "\"" << "5062" << "\"";
 	os << ")";
 	os << ";";
 	SubscriberRegistry::Status st = sqlUpdate(os.str().c_str());
@@ -504,14 +542,14 @@ bool SubscriberRegistry::useGateway(const char* ISDN)
 SubscriberRegistry::Status SubscriberRegistry::setPrepaid(const char *IMSI, bool yes)
 {
 	ostringstream os;
-	os << "update sip_buddies set prepaid = " << (yes ? 1 : 0)  << " where name = " << '"' << IMSI << '"';
+	os << "update sip_buddies set prepaid = " << (yes ? 1 : 0)  << " where username = " << '"' << IMSI << '"';
 	return sqlUpdate(os.str().c_str());
 }
 
 
 SubscriberRegistry::Status SubscriberRegistry::isPrepaid(const char *IMSI, bool &yes)
 {
-	char *st = sqlQuery("prepaid", "sip_buddies", "name", IMSI);
+	char *st = sqlQuery("prepaid", "sip_buddies", "username", IMSI);
 	if (!st) return FAILURE;
 	yes = *st == '1';
 	free(st);
@@ -521,7 +559,7 @@ SubscriberRegistry::Status SubscriberRegistry::isPrepaid(const char *IMSI, bool 
 
 SubscriberRegistry::Status SubscriberRegistry::secondsRemaining(const char *IMSI, int &seconds)
 {
-	char *st = sqlQuery("secondsRemaining", "sip_buddies", "name", IMSI);
+	char *st = sqlQuery("secondsRemaining", "sip_buddies", "username", IMSI);
 	if (!st) return FAILURE;
 	seconds = (int)strtol(st, (char **)NULL, 10);
 	free(st);
@@ -532,7 +570,7 @@ SubscriberRegistry::Status SubscriberRegistry::secondsRemaining(const char *IMSI
 SubscriberRegistry::Status SubscriberRegistry::addSeconds(const char *IMSI, int secondsToAdd, int &wSecondsRemaining)
 {
 	ostringstream os;
-	os << "update sip_buddies set secondsRemaining = secondsRemaining + " << secondsToAdd << " where name = " << '"' << IMSI << '"';
+	os << "update sip_buddies set secondsRemaining = secondsRemaining + " << secondsToAdd << " where username = " << '"' << IMSI << '"';
 	if (sqlUpdate(os.str().c_str()) == FAILURE) return FAILURE;
 	int n;
 	if (secondsRemaining(IMSI, n) == FAILURE) return FAILURE;
@@ -548,7 +586,7 @@ SubscriberRegistry::Status SubscriberRegistry::addSeconds(const char *IMSI, int 
 SubscriberRegistry::Status SubscriberRegistry::setSeconds(const char *IMSI, int seconds)
 {
 	ostringstream os;
-	os << "update sip_buddies set secondsRemaining = " << seconds << " where name = " << '"' << IMSI << '"';
+	os << "update sip_buddies set secondsRemaining = " << seconds << " where username = " << '"' << IMSI << '"';
 	return sqlUpdate(os.str().c_str());
 }
 
@@ -672,3 +710,12 @@ const char *HttpQuery::receive(const char *label)
 
 
 // vim: ts=4 sw=4
+
+
+
+
+
+
+
+
+

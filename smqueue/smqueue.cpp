@@ -434,6 +434,17 @@ SMq::process_timeout()
 }
 
 
+void
+increase_acked_msg_timeout(short_msg_pending *msg)
+{
+       time_t timeout = TT;
+       if (gConfig.defines("SIP.Timeout.ACKedMessageResend")) {
+               timeout = gConfig.getNum("SIP.Timeout.ACKedMessageResend");
+       }
+
+       msg->set_state(msg->state, msg->gettime() + timeout);
+}
+
 
 /*
  * We have received a SIP response message (with a status code like 200,
@@ -493,7 +504,8 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 		//While a 100 doesn't mean anything really, 
 		//we should increase the timeout because 
 		//we know the network worked
-		sent_msg->set_state(sent_msg->state, sent_msg->gettime() + TT);
+		//sent_msg->set_state(sent_msg->state, sent_msg->gettime() + TT);
+		increase_acked_msg_timeout(&(*sent_msg));
 		break;
 
 	case 2:	// 2xx -- success.
@@ -559,6 +571,7 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 		// FIXME, perhaps we should change its timeout value??  Shorter
 		// or longer???
 		LOG(WARNING) << "CONGESTION at OpenBTS\?\?!";
+		increase_acked_msg_timeout(&(*sent_msg));
 		break;
 
 	case 3: // 3xx -- message needs redirection
@@ -1160,7 +1173,7 @@ SMq::originate_sm(const char *from, const char *to, const char *msgtext,
 	osip_message_set_to(response->parsed, toline.str().c_str());
 
 	ostringstream uriline;
-	uriline << "sip:" << to << "@" << my_ipaddress << ":5602";
+	uriline << "sip:" << to << "@" << my_ipaddress << ":" << gConfig.getStr("SIP.Default.BTSPort", "5062").c_str();
 	osip_uri_init(&response->parsed->req_uri);
 	osip_uri_parse(response->parsed->req_uri, uriline.str().c_str());
 
@@ -1232,7 +1245,7 @@ SMq::bounce_message(short_msg_pending *sent_msg, const char *errstr)
 	if (status == 0) {
 	    return DELETE_ME_STATE;
 	} else {
-	    LOG(ERR) << "status != 0";
+	    LOG(ERR) << "status should be 0, instead it is " << status;
 	    return NO_STATE;	// Punt to debug.
 	}
 }
@@ -2365,6 +2378,9 @@ main(int argc, char **argv)
 
    if (gConfig.defines("SIP.Timeout.MessageResend")) {
       timeouts_REQUEST_MSG_DELIVERY[REQUEST_DESTINATION_SIPURL] = gConfig.getNum("SIP.Timeout.MessageResend");
+   }
+   if (gConfig.defines("SIP.Timeout.MessageBounce")) {
+      timeouts_REQUEST_DESTINATION_IMSI[DELETE_ME_STATE] = gConfig.getNum("SIP.Timeout.MessageBounce");
    }
 
    // This is for realtime config changes.

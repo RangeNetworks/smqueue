@@ -1,6 +1,6 @@
 /*
+* Copyright 2011 Kestrel Signal Processing, Inc.
 * Copyright 2011 Range Networks, Inc.
- * Copyright 2011 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
@@ -46,8 +46,13 @@ class SubscriberRegistry {
 
 	public:
 
-	SubscriberRegistry();
 	~SubscriberRegistry();
+
+	/**
+			Initialize the subscriber registry using parameters from gConfig.
+			@return 0 if the database was successfully opened and initialized; 1 otherwise
+	*/
+	int init();
 
 	typedef enum {
 		SUCCESS=0,		///< operation successful

@@ -18,7 +18,7 @@
  * See the COPYING file in the main directory for details.
  */
 
-#include "HLR.h"
+#include "SubscriberRegistry.h"
 #include <iostream>
 #include <Logger.h>
 #include <Configuration.h>
