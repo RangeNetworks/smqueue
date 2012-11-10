@@ -1547,7 +1547,7 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 	/* http://en.wikipedia.org/wiki/International_Mobile_Subscriber_Identity */
 	size_t len = strlen (tryuser);
         if (len != 15 && len != 14) {
-		LOG(ERR) << "Message does not have a valid IMSI!";
+		LOG(ERR) << "Message does not have a valid IMSI: " << tryuser;
 		/* This is not an IMSI.   Punt.  */
 		return NO_STATE;
 	}
