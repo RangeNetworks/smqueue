@@ -183,7 +183,9 @@ void create_sms_delivery(const std::string &body,
 	RPData *rp_data_new = NULL;
 	TLDeliver *deliver = NULL;
 	const char *from = smsg->parsed->from->displayname;
-	//const char *from = smsg->parsed->from->url->username;
+	if (from == 0){
+	    from = smsg->parsed->from->url->username;
+	}
 
        unsigned TLPID = 0;
        if (smsg->tl_message!=NULL) {
