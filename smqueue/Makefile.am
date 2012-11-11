@@ -34,14 +34,17 @@ noinst_HEADERS = \
 	poll.h \
 	smnet.h \
 	smqueue.h \
-	smsc.h
+	smsc.h \
+	diskbackup.h
 
 smqueue_SOURCES = \
 	poll.c \
 	smcommands.cpp \
 	smnet.cpp \
 	smqueue.cpp \
-	smsc.cpp
+	smsc.cpp \
+	diskbackup.cpp
+
 smqueue_LDADD = \
 	$(GLOBALS_LA) \
 	$(SMS_LA) \

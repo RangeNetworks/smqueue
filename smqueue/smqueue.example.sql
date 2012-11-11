@@ -2,6 +2,7 @@ PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE CONFIG (KEYSTRING TEXT UNIQUE NOT NULL, VALUESTRING TEXT, STATIC INTEGER DEFAULT 0, OPTIONAL INTEGER DEFAULT 0, COMMENTS TEXT DEFAULT '');
 INSERT INTO "CONFIG" VALUES('savefile', '/tmp/save',0,0,'The file to save SMS messages to when exiting.');
+INSERT INTO "CONFIG" VALUES('Backup.db', '/etc/OpenBTS/smq.backup.db',0,0,'The backup database for SMQ messages');
 INSERT INTO "CONFIG" VALUES('Log.Level','DEBUG',0,0,'Default logging level when no other level is defined for a file.');
 INSERT INTO "CONFIG" VALUES('Log.Level.smcommands.cpp','DEBUG',0,0,'Log level for short codes.');
 INSERT INTO "CONFIG" VALUES('Log.Alarms.Max','20',0,0,'Maximum number of alarms to remember inside the application.');

@@ -34,6 +34,7 @@
 
 #include "smnet.h"			// My network support
 #include "SubscriberRegistry.h"                // My home location register
+#include "diskbackup.h"
 
 // That's awful OSIP has a CR define.
 // It clashes with our innocent L2Address::CR().
@@ -42,6 +43,7 @@
 #include "SMSMessages.h"
 using namespace SMS;
 
+long long get_msecs();
 
 namespace SMqueue {
 
@@ -146,6 +148,8 @@ class short_msg {
 	                  // SIP MESSAGE sent to MS should be packed, while SIP
 	                  // REGISTER should not.
 
+	long long timestamp; //timestamp for backup id'ing
+
 	short_msg () :
 		text_length (0),
 		text (NULL),
@@ -157,8 +161,12 @@ class short_msg {
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
-		need_repack(true)
+		need_repack(true),
+		timestamp(get_msecs())
 	{
+	        struct timeval tv;
+		gettimeofday(&tv, NULL);
+		timestamp = tv.tv_usec;
 	}
 	// Make a short message, perhaps taking responsibility for deleting
 	// the "new"-allocated memory passed in.
@@ -173,7 +181,8 @@ class short_msg {
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
-		need_repack(true)
+	        need_repack(true),
+		timestamp(get_msecs())
 	{
 		if (!use_my_memory) {
 			text = new char [text_length+1];
@@ -199,7 +208,8 @@ class short_msg {
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
-		need_repack(true)
+		need_repack(true),
+		timestamp(get_msecs())
 	{
 		if (text_length) {
 			text = new char [text_length+1];
@@ -208,26 +218,6 @@ class short_msg {
 		}
 	};
 
-#if 0
-	short_msg (std::string str) :
-		text_length (str.length()),
-		text (0),
-		parsed_is_valid (false),
-		parsed_is_better (false),
-		parsed (NULL),
-		content_type(UNSUPPORTED_CONTENT),
-		convert_content_type(UNSUPPORTED_CONTENT),
-		rp_data(NULL),
-		tl_message(NULL),
-		ms_to_sc(false),
-		need_repack(false)
-	{
-		text = new char [text_length+1];
-		strncpy(text, str.data(), text_length);
-		text[text_length] = '\0';
-	};
-#endif
-	
 	/* Disable operator= to avoid pointer-sharing problems */
 	private:
 	short_msg & operator= (const short_msg &rvalue);
@@ -490,20 +480,6 @@ class short_msg_pending: public short_msg {
 	{
 	}
 
-#if 0
-	short_msg_pending (std::string str) : 
-		short_msg (str),
-		state (NO_STATE),
-		next_action_time (0),
-		retries (0),
-		// srcaddr({0}),  // can't seem to initialize an array?
-		srcaddrlen(0),
-		qtag (NULL),
-		qtaghash (0),
-		linktag (NULL)
-	{
-	}
-#endif
 
 	// 
 	// We would've liked to declare this next function PRIVATE,
@@ -577,21 +553,6 @@ class short_msg_pending: public short_msg {
 		short_msg::initialize (len, cstr, use_my_memory);
 		// initguts();
 	}
-
-#if 0
-	short_msg_pending (std::string str) : 
-		short_msg (str),
-		state (NO_STATE),
-		next_action_time (0),
-		retries (0),
-		// srcaddr({0}),  // can't seem to initialize an array?
-		srcaddrlen(0),
-		qtag (NULL),
-		qtaghash (0),
-		linktag (NULL)
-	{
-	}
-#endif
 
 	/* Optimize this later so we don't make so many kernel calls. */
 	time_t gettime () { return time(NULL); };
@@ -725,6 +686,8 @@ class SMq {
 	   messages and looking up their return and destination addresses.  */
 	SubscriberRegistry my_hlr;
 
+	SQLiteBackup my_backup;
+
 	/* Where to send SMS's that we can't route locally. */
 	std::string global_relay;
 	std::string global_relay_port;
@@ -770,6 +733,7 @@ class SMq {
 		reexec_smqueue (false)
 	{
 		my_hlr.init();
+		my_backup.init();
 	}
 
 	// Override operator= so -Weffc++ doesn't complain
@@ -829,6 +793,11 @@ class SMq {
 
 	/* Convert a short_msg to a given content type */
 	//void convert_message(short_msg_pending *qmsg, short_msg::ContentType toType);
+
+	/* handle an incoming datagram */
+	/* timestamp is used if you want to set the timestamp for an incoming message
+	   0 will cause a new timestamp to be generated */
+	void handle_datagram(int len, char* buffer, long long timestamp);
 
 	// Main loop listening for dgrams and processing them.
 	void main_loop();
@@ -962,34 +931,23 @@ class SMq {
 	// new messages as a 1-entry short_msg_p_list and then move
 	// them to the real list.  Note that this moves the message's list
 	// entry itself off the original list (which can then be discarded).
-	void insert_new_message(short_msg_p_list &smp) {
-		time_sorted_list.splice (time_sorted_list.begin(), smp);
-		time_sorted_list.begin()->set_state (INITIAL_STATE);
-		// time_sorted_list.begin()->timeout = 0;  // it is already
-		// Low timeout will cause this msg to be at front of queue.
-	}
-	// This version lets the initial state be set.
-	void insert_new_message(short_msg_p_list &smp, enum sm_state s) {
-		time_sorted_list.splice (time_sorted_list.begin(), smp);
-		time_sorted_list.begin()->set_state (s);
-		// time_sorted_list.begin()->timeout = 0;  // it is already
-		// Low timeout will cause this msg to be at front of queue.
-	}
 	// This version lets the state and timeout be set.
 	void insert_new_message(short_msg_p_list &smp, enum sm_state s, 
 			time_t t) {
+		if (!my_backup.insert(smp.begin()->timestamp, smp.begin()->text)){
+			LOG(INFO) << "Unable to backup message: " << time_sorted_list.begin()->timestamp;
+		}
 		time_sorted_list.splice (time_sorted_list.begin(), smp);
 		time_sorted_list.begin()->set_state (s, t);
 	}
-#if 0
-	void insert_new_message(short_msg_pending &smp) {
---!	FIXME!!  This seems to COPY the smp rather than INSERT it!
-		time_sorted_list.push_front (smp);
-		time_sorted_list.begin()->set_state (INITIAL_STATE);
-		// time_sorted_list.begin()->timeout = 0;  // it is already
-		// Low timeout will cause this msg to be at front of queue.
+	// This version lets the initial state be set.
+	void insert_new_message(short_msg_p_list &smp, enum sm_state s) {
+		insert_new_message(smp, s, 0);
 	}
-#endif
+	//Basic version
+	void insert_new_message(short_msg_p_list &smp) {
+		insert_new_message(smp, INITIAL_STATE);
+	}
 
 	/* Debug dump of the queue and the SMq class in general. */
 	void debug_dump();

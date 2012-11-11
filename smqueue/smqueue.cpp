@@ -172,6 +172,16 @@ bool print_as_we_validate = false;      // Debugging
  */
 short_code_map_t short_code_map;
 
+//kurtis utility function
+long long get_msecs(){
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    long long seconds = tv.tv_sec;
+    seconds *= 1000000;
+    seconds += tv.tv_usec;
+    return seconds;
+}
+
 /* Release memory from osip library */
 void
 osip_mem_release()
@@ -310,6 +320,9 @@ SMq::process_timeout()
 			short_msg_p_list temp;
 			// Extract the current sm from the time_sorted_list
 			temp.splice(temp.begin(), time_sorted_list, qmsg);
+			if(!my_backup.remove(temp.begin()->timestamp)){
+				LOG(INFO) << "Unable to remove message: " << temp.begin()->timestamp;
+			}
 			// When we remove it from the new "temp" list,
 			// this entry will be deallocated.  qmsg still
 			// points to its (dead) storage, so be careful
@@ -550,6 +563,9 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 		LOG(INFO) << "Deleting sent message.";
 		resplist.splice(resplist.begin(),
 				time_sorted_list, sent_msg);
+		if(!my_backup.remove(resplist.begin()->timestamp)){
+		    LOG(INFO) << "Unable to remove message: " << resplist.begin()->timestamp;
+		}		
 		resplist.pop_front();	// pop and delete the sent_msg.
 
 		// FIXME, consider breaking loose any other messages for
@@ -587,6 +603,10 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 	
 	// On exit, we delete the response message we've been examining
 	// when resplist goes out of scope.
+
+	if(!my_backup.remove(resplist.begin()->timestamp)){
+	    LOG(INFO) << "Unable to remove message: " << resplist.begin()->timestamp;
+	}		
 }
 
 /*
@@ -1980,6 +2000,82 @@ SMq::respond_sip_ack(int errcode, short_msg_pending *smp,
 		LOG(ERR) << "send_dgram had trouble sending the response.";
 }
 
+void
+SMq::handle_datagram(int len, char* buffer, long long timestamp){
+        short_msg_p_list *smpl;
+	short_msg_pending *smp;
+	int errcode;
+
+	// We got a datagram.  Dump it into the queue, copying it.
+	//
+	// Here we do a bit of tricky memory allocation.  Rather
+	// than make a short_msg_pending and then have to COPY it
+	// into a short_msg_p_list (including malloc-ing all the
+	// possible pointed-to stuff and then freeing all the original
+	// strings and things), we make a short_msg_p_list
+	// and create in it a single default element.  Then we fill
+	// in that element as our new short_msg_pending.  This lets
+	// us (soon) link it into the main message queue list, 
+	// without ever copying it.
+	// 
+	// HOWEVER!  The implementation of std::list in GNU C++
+	// (ver. 4.3.3) has a bug: it does not PERMIT a class to be
+	// made into
+	// a list UNLESS it allows copy-construction of its instances.
+	// You get an extremely inscrutable error message deep
+	// in the templated bowels of stl_list.h , referencing
+	// the next non-comment line of this file.
+	// THUS, we can't check at compile time to prevent the
+	// making of copies of short_msg_pending's -- instead, we
+	// have to do that check at runtime (allowing the default
+	// newly-initialized one to be copied, but aborting with
+	// any depth of stuff in it).
+	smpl = new short_msg_p_list (1);
+	smp = &*smpl->begin();	// Here's our short_msg_pending!
+	if (timestamp != 0){
+	    smp->timestamp = timestamp;
+	}
+	smp->initialize (len, buffer, false);
+	smp->ms_to_sc = true;
+	
+	if (my_network.recvaddrlen <= sizeof (smp->srcaddr)) {
+	        smp->srcaddrlen = my_network.recvaddrlen;
+		memcpy(smp->srcaddr, my_network.src_addr, 
+		       my_network.recvaddrlen);
+	}
+	
+	errcode = smp->validate_short_msg(this, true);
+	if (errcode == 0) {
+	        if (MSG_IS_REQUEST(smp->parsed)) {
+		        LOG(NOTICE) << "Got SMS '"
+				    << smp->qtag << "' from "
+				    << smp->parsed->from->url->username 
+				    << " for "
+				    << smp->parsed->req_uri->username
+				    << ".";
+		} else {
+		        LOG(INFO) << "Got SMS "
+				  << smp->parsed->status_code
+				  << " Response '"
+				  << smp->qtag << "'.";
+		}
+		insert_new_message (*smpl);
+		errcode = 202;	// Accepted and queued.
+	} else {
+	        LOG(WARNING) << "Received bad " << errcode
+			     << " datagram:" << endl
+			     << "BADMSG = " << smp->text;
+	}
+	// It's OK to reference "smp" here, whether it's in the
+	// smpl list, or has been moved into the main time_sorted_list.
+	respond_sip_ack (errcode, smp, smp->srcaddr, smp->srcaddrlen);
+	
+	// We won't leak memory if we didn't queue it up, since
+	// the delete of smpl will delete anything still
+	// in ITS list.
+	delete smpl;
+}
+
 //
 // The main loop that listens for incoming datagrams, handles them
 // through the queue, and moves them toward transmission.
@@ -1990,14 +2086,25 @@ SMq::main_loop()
 	int len;		// MUST be signed -- not size_t!
 				// else we can't see -1 for errors...
 	int timeout, mstimeout;
-	short_msg_p_list *smpl;
-	short_msg_pending *smp;
 	char buffer[5000];
 	short_msg_p_list::iterator qmsg;
+	backup_msg_list::iterator bmsg;
 	time_t now;
-	int errcode;
 
 	stop_main_loop = false;
+
+	//first load old datagrams into queue from storage
+	backup_msg_list* old_msgs = my_backup.get_stored_messages();
+	LOG(INFO) << old_msgs->size() << " messages in backup";
+	bmsg = old_msgs->begin();
+	while (bmsg != old_msgs->end()){
+	    LOG (INFO) << "backup got " << bmsg->text;
+	    strncpy(buffer, bmsg->text.c_str(), 5000);
+	    LOG(INFO) << "Inserting from backup " << bmsg->timestamp << ":" << buffer;
+	    handle_datagram(strnlen(buffer, 5000), buffer, bmsg->timestamp);
+	    bmsg++;
+	}
+	delete old_msgs;
 
    while (!stop_main_loop) {
 
@@ -2011,12 +2118,6 @@ SMq::main_loop()
 	}
 	mstimeout = 1000 * timeout;
 
-#undef DEBUG_Q
-#ifdef DEBUG_Q
-	LOG(DEBUG) << "=== Top of main_loop: queue:";
-	debug_dump();
-	LOG(DEBUG) << "============== End of queue.  timeout = " << timeout;
-#else
 	char timebuf[26+/*slop*/4];	// 
 	ctime_r(&now, timebuf);
 	timebuf[19] = '\0';	// Leave out space, year and newline
@@ -2032,7 +2133,7 @@ SMq::main_loop()
 		     << sm_state_string(qmsg->state)
 		     << " for " << qmsg->qtag;
 	}
-#endif
+
 	len = my_network.get_next_dgram(buffer, sizeof(buffer), mstimeout);	
 
 	if (len < 0) {
@@ -2043,71 +2144,7 @@ SMq::main_loop()
 		// Timeout.  Just push things along.
 		LOG(DEBUG) << "Timeout...";
 	} else {
-		// We got a datagram.  Dump it into the queue, copying it.
-		//
-		// Here we do a bit of tricky memory allocation.  Rather
-		// than make a short_msg_pending and then have to COPY it
-		// into a short_msg_p_list (including malloc-ing all the
-		// possible pointed-to stuff and then freeing all the original
-		// strings and things), we make a short_msg_p_list
-		// and create in it a single default element.  Then we fill
-		// in that element as our new short_msg_pending.  This lets
-		// us (soon) link it into the main message queue list, 
-		// without ever copying it.
-		// 
-		// HOWEVER!  The implementation of std::list in GNU C++
-		// (ver. 4.3.3) has a bug: it does not PERMIT a class to be
-		// made into
-		// a list UNLESS it allows copy-construction of its instances.
-		// You get an extremely inscrutable error message deep
-		// in the templated bowels of stl_list.h , referencing
-		// the next non-comment line of this file.
-		// THUS, we can't check at compile time to prevent the
-		// making of copies of short_msg_pending's -- instead, we
-		// have to do that check at runtime (allowing the default
-		// newly-initialized one to be copied, but aborting with
-		// any depth of stuff in it).
-		smpl = new short_msg_p_list (1);
-		smp = &*smpl->begin();	// Here's our short_msg_pending!
-		smp->initialize (len, buffer, false);
-		smp->ms_to_sc = true;
-
-		if (my_network.recvaddrlen <= sizeof (smp->srcaddr)) {
-			smp->srcaddrlen = my_network.recvaddrlen;
-			memcpy(smp->srcaddr, my_network.src_addr, 
-			       my_network.recvaddrlen);
-		}
-
-		errcode = smp->validate_short_msg(this, true);
-		if (errcode == 0) {
-			if (MSG_IS_REQUEST(smp->parsed)) {
-				LOG(NOTICE) << "Got SMS '"
-				     << smp->qtag << "' from "
-				     << smp->parsed->from->url->username 
-				     << " for "
-				     << smp->parsed->req_uri->username
-				     << ".";
-			} else {
-				LOG(INFO) << "Got SMS "
-				     << smp->parsed->status_code
-				     << " Response '"
-				     << smp->qtag << "'.";
-			}
-			insert_new_message (*smpl);
-			errcode = 202;	// Accepted and queued.
-		} else {
-			LOG(WARNING) << "Received bad " << errcode
-			     << " datagram:" << endl
-	                     << "BADMSG = " << smp->text;
-		}
-		// It's OK to reference "smp" here, whether it's in the
-		// smpl list, or has been moved into the main time_sorted_list.
-		respond_sip_ack (errcode, smp, smp->srcaddr, smp->srcaddrlen);
-
-		// We won't leak memory if we didn't queue it up, since
-		// the delete of smpl will delete anything still
-		// in ITS list.
-		delete smpl;
+	    handle_datagram(len, buffer, 0);
 	}
 
 	process_timeout();
