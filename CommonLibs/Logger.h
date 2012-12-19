@@ -73,7 +73,7 @@ class Log {
 	protected:
 
 	std::ostringstream mStream;		///< This is where we buffer up the log entry.
-	int mPriority;					///< Priority of current repot.
+	int mPriority;					///< Priority of current report.
 	bool mDummyInit;
 
 	public:
@@ -84,7 +84,7 @@ class Log {
 
 	Log(const char* name, const char* level=NULL, int facility=LOG_USER);
 
-	// Most of the work is in the desctructor.
+	// Most of the work is in the destructor.
 	/** The destructor actually generates the log entry. */
 	~Log();
 
@@ -102,6 +102,8 @@ std::list<std::string> gGetLoggerAlarms();		///< Get a copy of the recent alarm 
 void gLogInit(const char* name, const char* level=NULL, int facility=LOG_USER);
 /** Get the logging level associated with a given file. */
 int gGetLoggingLevel(const char *filename=NULL);
+/** Allow early logging when still in constructors */
+void gLogEarly(int level, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 //@}
 
 

@@ -38,6 +38,6 @@ GSM_LA = $(top_builddir)/GSM/libGSM.la
 SMS_LA = $(top_builddir)/SMS/libSMS.la
 GLOBALS_LA = $(top_builddir)/Globals/libglobals.la
 HLR_LA = $(top_builddir)/HLR/libHLR.la
-SQLITE_LA = $(top_builddir)/sqlite3/libsqlite.la
+SQLITE_LA = $(top_builddir)/sqlite3/libsqlite.la -ldl
 
 MOSTLYCLEANFILES = *~
