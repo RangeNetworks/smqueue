@@ -58,6 +58,10 @@ AC_C_BIGENDIAN
 # Defines OSIP_CFLAGS, OSIP_INCLUDEDIR, and OSIP_LIBS
 PKG_CHECK_MODULES(OSIP, libosip2)
 
++# Check for glibc-specific network functions
+AC_CHECK_FUNC(gethostbyname_r, [AC_DEFINE(HAVE_GETHOSTBYNAME_R, 1, Define if libc implements gethostbyname_r)])
+AC_CHECK_FUNC(gethostbyname2_r, [AC_DEFINE(HAVE_GETHOSTBYNAME2_R, 1, Define if libc implements gethostbyname2_r)])
+
 dnl Output files
 AC_CONFIG_FILES([\
     Makefile \
