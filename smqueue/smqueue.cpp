@@ -1241,12 +1241,12 @@ SMq::bounce_message(short_msg_pending *sent_msg, const char *errstr)
 	std::string thetext;
 	int status;
 
-	username = sent_msg->parsed->to->url->username;
-	thetext = sent_msg->get_text();
-
 	LOG(NOTICE) << "Bouncing " << sent_msg->qtag << " from "
 	     << sent_msg->parsed->from->url->username  // his phonenum
 	     << " to " << username << ": " << errstr;
+
+	username = sent_msg->parsed->to->url->username;
+	thetext = sent_msg->get_text();
 
 	errmsg << "Can't send your SMS to " << username << ": ";
 	if (errstr)
