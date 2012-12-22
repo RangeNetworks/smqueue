@@ -386,13 +386,35 @@ class short_msg {
 		break;
 
 		case VND_3GPP_SMS: {
-			const TLSubmit *submit = (TLSubmit*)tl_message;
-			if (submit == NULL) {
+			if (tl_message == NULL) {
 				return "";
 			}
 
+			LOG(DEBUG) << "Trying to decode message " << (ms_to_sc?"MS->SC":"SC->MS")
+			           << " MTI=" << tl_message->MTI() << " tl_message: " << *tl_message;
+
 			try {
-				return submit->UD().decode();
+				std::string decoded_text;
+				// MS->SC and SC-MS messages have to be handled separately
+				if (ms_to_sc) {
+					// Only SUBMIT messages have text data.
+					if (tl_message->MTI() != TLMessage::SUBMIT) {
+						LOG(NOTICE) << "Can't decode MS->SC message with MTI=" << tl_message->MTI();
+					} else {
+						const TLSubmit *submit = (TLSubmit*)tl_message;
+						decoded_text = submit->UD().decode();
+					}
+				} else {
+					// Only DELIVER messages have text data.
+					if (tl_message->MTI() != TLMessage::DELIVER) {
+						LOG(NOTICE) << "Can't decode SC->MS message with MTI=" << tl_message->MTI();
+					} else {
+						const TLDeliver *deliver = (TLDeliver*)tl_message;
+						decoded_text = deliver->UD().decode();
+					}
+				}
+				LOG(NOTICE) << "Decoded text: " << decoded_text;
+				return decoded_text;
 			}
 			catch (SMSReadError) {
 				//LOG(WARNING) << "SMS parsing failed (above L3)";
