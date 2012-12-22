@@ -176,6 +176,29 @@ short_code_action sendSIP_init_text(const char *imsi,
 	return SCA_RESTART_PROCESSING;
 }
 
+void pack_tpdu(short_msg_p_list::iterator &smsg)
+{
+	// Pack RP-DATA to bitstream
+	RLFrame RPDU_new(smsg->rp_data->bitsNeeded());
+	smsg->rp_data->write(RPDU_new);
+	LOG(DEBUG) << "New RLFrame: " << RPDU_new;
+
+	// START OF THE SIP PROCESSING
+	osip_message_t *omsg = smsg->parsed;
+
+	// Message body
+	osip_body_t *bod1 = (osip_body_t *)omsg->bodies.node->element;
+	osip_free(bod1->body);
+	ostringstream body_stream;
+	RPDU_new.hex(body_stream);
+	bod1->length = body_stream.str().length();
+	bod1->body = (char *)osip_malloc (bod1->length+1);
+	strcpy(bod1->body, body_stream.str().data());
+
+	// Let them know that parsed part has been changed.
+	smsg->parsed_was_changed();
+}
+
 void create_sms_delivery(const std::string &body,
 			 const TLUserData &UD,
                          short_msg_p_list::iterator &smsg)
@@ -214,32 +237,13 @@ void create_sms_delivery(const std::string &body,
 	delete smsg->tl_message;
 	smsg->rp_data = rp_data_new;
 	smsg->tl_message = deliver;
-}
 
-void pack_tpdu(short_msg_p_list::iterator &smsg)
-{
-	// Pack RP-DATA to bitstream
-	RLFrame RPDU_new(smsg->rp_data->bitsNeeded());
-	smsg->rp_data->write(RPDU_new);
-	LOG(DEBUG) << "New RLFrame: " << RPDU_new;
+	// Pack RP-Data to bitstream and update SIP message
+	pack_tpdu(smsg);
 
-	// START OF THE SIP PROCESSING
-	osip_message_t *omsg = smsg->parsed;
-
-	// Message body
-	osip_body_t *bod1 = (osip_body_t *)omsg->bodies.node->element;
-	osip_free(bod1->body);
-	ostringstream body_stream;
-	RPDU_new.hex(body_stream);
-	bod1->length = body_stream.str().length();
-	bod1->body = (char *)osip_malloc (bod1->length+1);
-	strcpy(bod1->body, body_stream.str().data());
-
-	// Let them know that parsed part has been changed.
-	smsg->parsed_was_changed();
-
-	// It's SC->MS now
+	// Now we have SC->MS message
 	smsg->ms_to_sc = false;
+
 }
 
 void set_to_for_smsc(const char *address, short_msg_p_list::iterator &smsg)
@@ -411,7 +415,6 @@ bool pack_text_to_tpdu(const std::string &body,
                        short_msg_p_list::iterator &smsg)
 {
 	create_sms_delivery(body, TLUserData(body.data()), smsg);
-	pack_tpdu(smsg);
 
 	// Set Content-Type field
 	const char *type = "application";
@@ -481,7 +484,6 @@ bool recode_tpdu(const std::string &body,
 		TLSubmit *submit = (TLSubmit*)smsg->tl_message;
 		const TLUserData& tl_ud = submit->UD();
 		create_sms_delivery(body, tl_ud, smsg);
-		pack_tpdu(smsg);
 		return_action = true;
 		break;
 	}
@@ -493,9 +495,6 @@ bool recode_tpdu(const std::string &body,
 		          << (TLMessage::MessageType)smsg->tl_message->MTI();
 		return false;
 	}
-
-	// Now we have MS->SC message
-	smsg->ms_to_sc = false;
 
 	return return_action;
 }
