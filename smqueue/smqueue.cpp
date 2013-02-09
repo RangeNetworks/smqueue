@@ -573,24 +573,22 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 		break;
 
 	case 4: // 4xx -- failure by client
-		{
-			// 480 Temporarily Unavailable - means we have to retry later.
-			// Most likely this means that a subscriber left network coverage
-			// without unregistering from the network. Try again later.
-			// Eventually we should have a hook for their return
-			if (qmsg->parsed->status_code == 480){
-				increase_acked_msg_timeout(&(*sent_msg));
-			}
-			// Other 4xx codes mean the original message was bad.  Bounce it.
-			else {
-				ostringstream errmsg;
-				errmsg << qmsg->parsed->status_code << " "
-				       << qmsg->parsed->reason_phrase;
-				sent_msg->set_state(
-				    bounce_message((&*sent_msg), errmsg.str().c_str()));
-			}
-			break;
+		// 480 Temporarily Unavailable - means we have to retry later.
+		// Most likely this means that a subscriber left network coverage
+		// without unregistering from the network. Try again later.
+		// Eventually we should have a hook for their return
+		if (qmsg->parsed->status_code == 480){
+			increase_acked_msg_timeout(&(*sent_msg));
 		}
+		// Other 4xx codes mean the original message was bad.  Bounce it.
+		else {
+			ostringstream errmsg;
+			errmsg << qmsg->parsed->status_code << " "
+			       << qmsg->parsed->reason_phrase;
+			sent_msg->set_state(
+			    bounce_message((&*sent_msg), errmsg.str().c_str()));
+		}
+		break;
 		
 	case 5: // 5xx -- failure by server (poss. congestion)
 		// FIXME, perhaps we should change its timeout value??  Shorter
