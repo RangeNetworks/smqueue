@@ -564,7 +564,7 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 		resplist.splice(resplist.begin(),
 				time_sorted_list, sent_msg);
 		if(!my_backup.remove(resplist.begin()->timestamp)){
-		    LOG(INFO) << "Unable to remove message: " << resplist.begin()->timestamp;
+			LOG(INFO) << "Unable to remove message: " << resplist.begin()->timestamp;
 		}		
 		resplist.pop_front();	// pop and delete the sent_msg.
 
@@ -614,7 +614,7 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 	// when resplist goes out of scope.
 
 	if(!my_backup.remove(resplist.begin()->timestamp)){
-	    LOG(INFO) << "Unable to remove message: " << resplist.begin()->timestamp;
+		LOG(INFO) << "Unable to remove message: " << resplist.begin()->timestamp;
 	}		
 }
 
