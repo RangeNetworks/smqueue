@@ -573,11 +573,12 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 		break;
 
 	case 4: // 4xx -- failure by client
+		// 486 Busy - means we have to retry later.
 		// 480 Temporarily Unavailable - means we have to retry later.
 		// Most likely this means that a subscriber left network coverage
 		// without unregistering from the network. Try again later.
 		// Eventually we should have a hook for their return
-		if (qmsg->parsed->status_code == 480){
+		if (qmsg->parsed->status_code == 480 || qmsg->parsed->status_code == 486){
 			increase_acked_msg_timeout(&(*sent_msg));
 		}
 		// Other 4xx codes mean the original message was bad.  Bounce it.
