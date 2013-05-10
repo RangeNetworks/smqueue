@@ -361,6 +361,25 @@ shortcode_register (const char *imsi, const char *msgtext,
 
 
 
+enum short_code_action
+shortcode_balance (const char *imsi, const char *msgtext,
+		      short_code_params *scp)
+{
+	SubscriberRegistry& hlr = scp->scp_smq->my_hlr;
+	int accountBalance = 0;
+	SubscriberRegistry::Status stat = hlr.balanceRemaining(imsi,accountBalance);
+	if (stat != SubscriberRegistry::SUCCESS) {
+		LOG(ALERT) << "cannot check account for user " << imsi;
+		scp->scp_reply = new_strdup("operation failed");
+	} else {
+		char rsp[200];
+		sprintf(rsp,gConfig.getStr("SC.Balance.String").c_str(),accountBalance);
+		scp->scp_reply = new_strdup(rsp);
+	}
+	return SCA_REPLY;
+}
+
+
 /*
  * Here is where we list all the functions that we care to make
  * available -- along with their phone numbers.
@@ -380,8 +399,8 @@ SMqueue::init_smcommands (short_code_map_t *scm)
 		(*scm)[gConfig.getStr("SC.ZapQueued.Code").c_str()] = shortcode_zap_queued;
 	if (gConfig.defines("SC.WhiplashQuit.Code"))
 		(*scm)[gConfig.getStr("SC.WhiplashQuit.Code").c_str()] = whiplash_quit;
-	if (gConfig.defines("SC.SMSC.Code")) {
+	if (gConfig.defines("SC.SMSC.Code"))
 		(*scm)[gConfig.getStr("SC.SMSC.Code").c_str()] = shortcode_smsc;
-	}
+
 //	(*scm)["666"]    = shortcode_text_access;
 }

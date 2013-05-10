@@ -30,6 +30,8 @@ using namespace std;
 // FORWARD DECLARATIONS
 void set_to_for_smsc(const char *address, short_msg_p_list::iterator &smsg);
 
+extern short_code_map_t short_code_map;
+
 /**@name Functions for transmitting through various gateways. */
 //@{
 
@@ -272,6 +274,46 @@ short_code_action submitSMS(const char *imsi, const TLSubmit& submit,
 	LOG(INFO) << "from " << imsi << " message: " << submit;
 	const TLAddress& address = submit.DA();
 
+	// Hey! You can get to the HLR through the scp argument!
+	SubscriberRegistry& hlr = scp->scp_smq->my_hlr;
+
+	// Is this message going to a short code?
+	// Short codes costs are special cases and will be checked im the short code handlers thmeselves.
+	bool isShortCode = (short_code_map.find(address.digits()) != short_code_map.end());
+
+	// TODO: If this is a short code, and we know that the cost will be 0, why waste time hitting the subscriber registry? -DCK
+	//       That means, don't look up the service, and don't check to see if any user is prepaid.
+
+	// FIXME: There are some helper functions in smqueue.cpp. Why not use those? Or move them somewhere to be used commonly. -DCK
+
+	// Get the delivery cost.
+	string service;
+	const char * dialedNumber = address.digits();
+	if (hlr.getIMSI(dialedNumber)) service = gConfig.getStr("ServiceType.Local");
+	else service = gConfig.getStr("ServiceType.Networked");
+	int cost = hlr.serviceCost(service.c_str());
+	if (isShortCode) cost = 0;
+	if (cost>=0) scp->scp_qmsg_it->cost = cost;
+	else { LOG(ALERT) << "cannot get cost for service type " << service; }
+	scp->scp_qmsg_it->service = service;
+
+	// If the message is NOT inbound from the relay, bill
+	if (!scp->scp_qmsg_it->from_relay) {
+		// Check the subscriber's balance now.
+		bool prepaid;
+        	hlr.isPrepaid(imsi,prepaid);
+		int accountBalance = 0;
+		SubscriberRegistry::Status stat = hlr.balanceRemaining(imsi,accountBalance);
+		if (stat != SubscriberRegistry::SUCCESS) { LOG(ALERT) << "cannot check account for user " << imsi; }
+		if (prepaid && cost!=0 && accountBalance<cost) {
+			ostringstream os;
+			// TODO: Make customizable
+			os << "Account balance of " << accountBalance << " too low for service cost of " << cost << ".";
+			scp->scp_reply = new_strdup(os.str().c_str());
+			return SCA_REPLY;
+		}
+	}
+
 //#if 0
 //This is broken under Unbuntu becasue of changes in the "mail" program.
 
@@ -288,9 +330,7 @@ short_code_action submitSMS(const char *imsi, const TLSubmit& submit,
 		*term = '\0';
 		char* SMTPPayload = term+1;
 		// Get the sender's E.164 to put in the subject line.
-		// Hey! You can get to the HLR through the scp argument!
-		// It's just not tested.
-		char* clid = scp->scp_smq->my_hlr.getCLIDLocal(imsi);
+		char* clid = hlr.getCLIDLocal(imsi);
 		char subjectLine[200];
 		if (!clid) sprintf(subjectLine,"from %s",imsi);
 		else {
@@ -309,7 +349,6 @@ short_code_action submitSMS(const char *imsi, const TLSubmit& submit,
 	// Send to smqueue or HTTP gateway, depending on what's defined in the config.
 	// And whether of not we can resolve the destination, and a global relay does not exist,
 	// AND the message is not to a shortcode.
-	extern short_code_map_t short_code_map;
 	short_code_map_t::const_iterator shortit = short_code_map.find(address.digits());
 	if (!gConfig.defines("SIP.GlobalRelay.IP") && gConfig.defines("SMS.HTTPGateway.URL") &&
 		!destinationNumber && (shortit == short_code_map.end()))
@@ -390,7 +429,7 @@ short_code_action shortcode_smsc(const char *imsi, const char *msgtext,
 		if (smsg->content_type == short_msg::TEXT_PLAIN) {
 			return sendSIP_init_text(imsi, msgtext, scp);//convert_from_plain(msgtext, smsg);
 		} else {
-			LOG(WARNING) << "We support only TPDU-coded SMS messages. Plain text ones are to be supported later.";
+			LOG(WARNING) << "We support only TPDU-coded SMS messages or plain text encoded SMS messages.";
 			return SCA_INTERNAL_ERROR;
 		}
 	}

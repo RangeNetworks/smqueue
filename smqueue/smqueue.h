@@ -31,9 +31,11 @@
 #include <map>
 #include <string>
 #include <iostream>
+#include <stdio.h>
 
 #include "smnet.h"			// My network support
-#include "SubscriberRegistry.h"                // My home location register
+#include <SubscriberRegistry.h>                        // My home location register
+#include <Logger.h>
 #include "diskbackup.h"
 
 // That's awful OSIP has a CR define.
@@ -148,6 +150,8 @@ class short_msg {
 	                  // SIP MESSAGE sent to MS should be packed, while SIP
 	                  // REGISTER should not.
 
+	bool from_relay;
+
 	long long timestamp; //timestamp for backup id'ing
 
 	short_msg () :
@@ -162,6 +166,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
+		from_relay(false),    
 		timestamp(get_msecs())
 	{
 	        struct timeval tv;
@@ -182,6 +187,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 	        need_repack(true),
+		from_relay(false),    
 		timestamp(get_msecs())
 	{
 		if (!use_my_memory) {
@@ -209,6 +215,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
+		from_relay(false),    
 		timestamp(get_msecs())
 	{
 		if (text_length) {
@@ -455,6 +462,8 @@ class short_msg_pending: public short_msg {
 	time_t next_action_time;	// When to do something different
 	int retries;			// How many times we've retried
 					// this message.
+	int cost;			// cost of delivering this message, -1 until defined
+	string service;			// service cost name
 	char srcaddr[16];		// Source address (ipv4 or 6 or ...)
 	socklen_t srcaddrlen;		// Valid length of src address.
 	char *qtag;			// Tag that identifies this msg
@@ -479,6 +488,8 @@ class short_msg_pending: public short_msg {
 		state (NO_STATE),
 		next_action_time (0),
 		retries (0),
+		cost(-1),
+		service(""),
 		// srcaddr({0}),  // can't seem to initialize an array?
 		srcaddrlen(0),
 		qtag (NULL),
@@ -494,6 +505,8 @@ class short_msg_pending: public short_msg {
 		state (NO_STATE),
 		next_action_time (0),
 		retries (0),
+		cost(-1),
+		service(""),		    
 		// srcaddr({0}),  // can't seem to initialize an array?
 		srcaddrlen(0),
 		qtag (NULL),
@@ -515,6 +528,8 @@ class short_msg_pending: public short_msg {
 		state (smp.state),
 		next_action_time (smp.next_action_time),
 		retries (smp.retries),
+		cost(smp.cost),
+		service(""),
 		// srcaddr({0}),  // can't seem to initialize an array?
 		srcaddrlen(smp.srcaddrlen),
 		qtag (NULL),
@@ -617,6 +632,24 @@ class short_msg_pending: public short_msg {
 	/* Check host and port for validity.  */
 	bool
 	check_host_port(char *host, char *port);
+
+	/* Check to see if it is an in-network destination. */
+	bool local_destination(SubscriberRegistry& hlr) const;
+
+	/* Check to see if it is from a local user, as opposed to from the gateway. */
+	bool local_source(SubscriberRegistry& hlr) const;
+
+	/* Calculate the cost of delivering this message and set the cost field. */
+	int set_delivery_cost(SubscriberRegistry& hlr);
+
+	/* Check to see if the user has enough credit to send the message. Also sets the cost field. */
+	bool sufficient_credit(SubscriberRegistry& hlr) const;
+
+	/* Debit the account when a message is verified as delivered. */
+	void debit_account(SubscriberRegistry& hlr) const;
+
+	/* Generate a billing record. */
+	void write_cdr(SubscriberRegistry& hlr) const;
 
 };
 
@@ -826,6 +859,9 @@ class SMq {
 
 	/* If nothing happens for a while, handle that.  */
 	void process_timeout();
+
+	/* Verify that sufficient funds exist to send a particular message. */
+	enum sm_state verify_funds(short_msg_p_list::iterator& qmsg);
 
 	/* Send a SIP response to acknowledge reciept of a short msg. */
 	void respond_sip_ack(int errcode, short_msg_pending *smp, 

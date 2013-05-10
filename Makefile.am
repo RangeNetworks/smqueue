@@ -28,7 +28,7 @@ SUBDIRS = \
 	sqlite3 \
 	CommonLibs \
 	Globals \
-	HLR \
+	SR \
 	GSM \
 	SMS \
 	doc \

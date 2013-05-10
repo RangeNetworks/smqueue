@@ -57,4 +57,10 @@ INSERT INTO "CONFIG" VALUES('SubscriberRegistry.A3A8','/OpenBTS/comp128',0,0,'Lo
 INSERT INTO "CONFIG" VALUES('SubscriberRegistry.HTTP.Server','http://127.0.0.1/cgi/subscriberserver.cgi',0,0,'URL of the subscriber registry server.');
 INSERT INTO "CONFIG" VALUES('SubscriberRegistry.db','/var/lib/asterisk/sqlite3dir/sqlite3.db',0,0,'The location of the sqlite3 database holding the subscriber registry.');
 INSERT INTO "CONFIG" VALUES('SC.SMSC.Code','smsc',0,0,'The SMSC entry point. There is where OpenBTS sends SIP MESSAGES to.');
+INSERT INTO "CONFIG" VALUES('CDRFile','/var/lib/OpenBTS/smq.cdr',0,1,'');
+INSERT INTO "CONFIG" VALUES('ServiceType.Networked','out-of-network-SMS',0,1,'Rate service name for out-of-network SMS messages.');
+INSERT INTO "CONFIG" VALUES('SC.Balance.Code','1000',0,0,'Short code for account balance queries.');
+INSERT INTO "CONFIG" VALUES('SC.Balance.String','Your account balance is %d',0,1,'Balance message string.');
+INSERT INTO "CONFIG" VALUES('ServiceType.Local','in-network-SMS',0,1,'Rate service name for in-network SMS messages.');
 COMMIT;
+

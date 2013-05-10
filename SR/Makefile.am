@@ -25,20 +25,20 @@ AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
 AM_CXXFLAGS = $(STD_DEFINES_AND_INCLUDES) -Wall -ldl -lpthread
 
 EXTRA_DIST = \
-	README.HLR \
+	README.SR \
 	maketables.sql
 
-noinst_LTLIBRARIES = libHLR.la
+noinst_LTLIBRARIES = libSR.la
 
-libHLR_la_SOURCES = \
+libSR_la_SOURCES = \
        SubscriberRegistry.cpp
 
 noinst_PROGRAMS = \
-	HLRTest
+	SRTest
 
 noinst_HEADERS = \
        SubscriberRegistry.h
 
-HLRTest_LDADD =  libHLR.la $(COMMON_LA) $(SQLITE_LA)
-HLRTest_SOURCES = HLRTest.cpp
+SRTest_LDADD =  libSR.la $(COMMON_LA) $(SQLITE_LA)
+SRTest_SOURCES = SRTest.cpp
 

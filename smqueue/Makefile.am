@@ -51,6 +51,6 @@ smqueue_LDADD = \
 	$(GSM_LA) \
 	$(COMMON_LA) \
 	$(SQLITE_LA) \
-	$(HLR_LA) \
+	$(SR_LA) \
 	$(SIP_LA) \
 	$(OSIP_LIBS)

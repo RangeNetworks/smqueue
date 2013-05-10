@@ -425,6 +425,8 @@ bool SMnet::msg_is_from_relay(const char *srcaddr, socklen_t srcaddrlen,
 	struct addrinfo *myaddrs, *ap;
 	int s = 0;
 
+	LOG(DEBUG) << "Source addr: " << string_addr((struct sockaddr *)srcaddr, srcaddrlen, true);
+
 	// We are allowing relay_ip to be empty. If it is, this isn't from a relay.
 	if (!relay_ip || strlen(relay_ip) == 0) {
 		return false;

@@ -45,6 +45,8 @@ using namespace SMqueue;
 // DAB
 ConfigurationTable gConfig("/etc/OpenBTS/smqueue.db");
 
+/* The global CDR file. */
+FILE * gCDRFile = NULL;
 
 /* We try to centralize most of the timeout values into this table.
    Occasionally the code might do something different where it knows
@@ -292,7 +294,8 @@ SMq::process_timeout()
 					// on its own
 					if (!handle_short_code(short_code_map, qmsg, newstate)) {
 						// For non-special messages, look up who they're from.
-						newstate = REQUEST_FROM_ADDRESS_LOOKUP;
+						//newstate = REQUEST_FROM_ADDRESS_LOOKUP;
+						newstate = verify_funds(qmsg);
 					}
 				}
 				set_state(qmsg, newstate);
@@ -383,18 +386,14 @@ SMq::process_timeout()
 			// debug_dump();	// FIXME, remove
 			// Only print delivering msg if delivering to non-
 			// localhost.
-			if (0 != strcmp("127.0.0.1",
-					qmsg->parsed->req_uri->host)) {
-				LOG(INFO) << "Delivering '"
+			LOG(INFO) << "Delivering '"
 				     << qmsg->qtag << "' from "
 				     << qmsg->parsed->from->url->username 
-				//     << " for "
-				//     << qmsg->parsed->req_uri->username
 				     << " at "
 				     << qmsg->parsed->req_uri->host
 				     << ":" << qmsg->parsed->req_uri->port
 				     << ".";
-			}
+
 			// FIXME, if we can't deliver the datagram we
 			// just do the same thing regardless of the result.
 			if (my_network.deliver_msg_datagram(&*qmsg))
@@ -517,7 +516,6 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 		//While a 100 doesn't mean anything really, 
 		//we should increase the timeout because 
 		//we know the network worked
-		//sent_msg->set_state(sent_msg->state, sent_msg->gettime() + TT);
 		increase_acked_msg_timeout(&(*sent_msg));
 		break;
 
@@ -556,6 +554,13 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 				// retry loop somewhere.  Ignore it.
 				// Eventually it'll notice...?  FIXME.
 			}
+		}
+		if (sent_msg->parsed && 
+		    sent_msg->parsed->sip_method && 
+		    0 == strcmp("MESSAGE", sent_msg->parsed->sip_method)) {
+			// Decrement the user account.
+			sent_msg->set_delivery_cost(my_hlr);
+			sent_msg->debit_account(my_hlr);
 		}
 
 		// Whether a response to a REGISTER or a MESSAGE, delete 
@@ -878,6 +883,8 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 		// TODO: Don't do this. From coming in through the relay is probably not resolvable.
 		/*if (!manager->from_is_deliverable(p->from->url->username))
 			return 403;*/
+		from_relay = true;
+		LOG(DEBUG) << "In bound message from " << p->from->url->username << " to " << user << " is from relay";
 	}
 	// The spec wants Via: line even on acks, but do we care?  FIXME.
 	// if (p->vias.nb_elt < 1 || false) // ... FIXME )
@@ -1021,6 +1028,154 @@ short_msg_pending::check_host_port (char *host, char *port)
 	// we could check whether it's all digits...  FIXME
 
 	return true;
+}
+
+
+bool short_msg_pending::local_destination(SubscriberRegistry& hlr) const
+{
+	// Check to see if the dest address is in the registry.
+	assert(parsed_is_valid);
+	char * user = parsed->to->url->username;
+	char * dest = hlr.getIMSI(user);
+	bool local = dest != NULL;
+	free(dest);
+	return local;
+}
+
+bool short_msg_pending::local_source(SubscriberRegistry& hlr) const
+{
+	// Check to see if this message is from a local source, or coming in through a gateway.
+	// This is s hack - we are just looking for the "IMSI" prefix on the source user.
+	assert(parsed_is_valid);
+	char * user = parsed->req_uri->username;
+	if (strncmp("imsi",user,4)==0) return true;
+	if (strncmp("IMSI",user,4)==0) return true;
+	return false;
+}
+
+int  short_msg_pending::set_delivery_cost(SubscriberRegistry& hlr)
+{
+	// If the cost is >= 0 then it has already been set.
+	if (cost>=0) return cost;
+	if (!local_source(hlr)) return 0;
+	// Determine service type and check credit.
+	string service;
+	if (local_destination(hlr)) service = gConfig.getStr("ServiceType.Local");
+	else service = gConfig.getStr("ServiceType.Networked");
+	int cost = hlr.serviceCost(service.c_str());
+	if (cost<0) { LOG(ALERT) << "cannot determine cost for service " << service << ", destination " << parsed->to->url->username; }
+	return cost;
+}
+
+bool short_msg_pending::sufficient_credit(SubscriberRegistry& hlr) const
+{
+	// TODO: If we support billing on incoming messages, this needs to change.
+	if (from_relay)
+		return true;
+
+	// This should be called AFTER calling set_delivery_cost.
+	assert(parsed_is_valid);
+	if (!local_source(hlr)) return true;
+	// If not prepaid, return true.
+	char * user = parsed->req_uri->username;
+	bool prepaid;
+	hlr.isPrepaid(user,prepaid);
+	if (!prepaid) return true;
+	// Determine service type and check credit.
+	int credits;
+	SubscriberRegistry::Status stat = hlr.balanceRemaining(user,credits);
+	if (stat != SubscriberRegistry::SUCCESS) {
+		LOG(NOTICE) << "balance lookup failed for user " << user;
+		return false;
+	}
+	return credits>cost;
+}
+
+void short_msg_pending::debit_account(SubscriberRegistry& hlr) const
+{
+	// TODO: If we support billing on incoming messages, this needs to change.
+	if (from_relay)
+		return;
+
+	const char * number = parsed->from->url->username;
+	if (!number) {
+		LOG(ERR) << "no defined number";
+		return;
+	}
+	const char * user = hlr.getIMSI(number);
+	if (!user) {
+		LOG(NOTICE) << "cannot find billable user for SMS from " << number;
+		return;
+	}
+	if (cost<=0) {
+		LOG(ERR) << "short message with undetermined cost for user " << user;
+		return;
+	}
+	SubscriberRegistry::Status stat = hlr.addMoney(user,-cost);
+	if (stat != SubscriberRegistry::SUCCESS) {
+		LOG(ALERT) << "account debit failed for user " << user;
+	}
+	write_cdr(hlr);
+}
+
+void short_msg_pending::write_cdr(SubscriberRegistry& hlr) const
+{
+	char * from = parsed->from->url->username;
+	char * dest = parsed->to->url->username;
+	time_t now = time(NULL);
+
+	if (gCDRFile) {
+		char * user = hlr.getIMSI(from); // I am not a fan of this hlr call here. Probably a decent performance hit...
+		// source, sourceIMSI, dest, tariff, totaltariff, costCenter, date
+		// totalTariff is something that would be used if a message > 160 chars is involved
+		fprintf(gCDRFile,"%s,%s,%s,%d,%d,%s,%s", from, user, dest, cost, cost, service.c_str(), ctime(&now));
+		fflush(gCDRFile);
+	} else {
+		LOG(ALERT) << "CDR file at " << gConfig.getStr("CDRFile").c_str() << " could not be created or opened!";
+	}
+}
+
+enum sm_state SMq::verify_funds(short_msg_p_list::iterator& qmsg)
+{
+	enum sm_state next_state = REQUEST_FROM_ADDRESS_LOOKUP;
+	
+	// Get the delivery cost.
+	string service;
+	const char * imsi = qmsg->parsed->from->url->username;
+	const char * dialedNumber = qmsg->parsed->req_uri->username;
+	if (my_hlr.getIMSI(dialedNumber)) service = gConfig.getStr("ServiceType.Local");
+	else service = gConfig.getStr("ServiceType.Networked");
+	int cost = my_hlr.serviceCost(service.c_str());
+
+	if (cost>=0) qmsg->cost = cost;
+	else { LOG(ALERT) << "cannot get cost for service type " << service << " for dialed number " << dialedNumber; }
+	qmsg->service = service;
+
+	if (qmsg->from_relay)
+		return next_state;
+
+	// Check the subscriber's balance now.
+	bool prepaid;
+	my_hlr.isPrepaid(imsi,prepaid);
+	int accountBalance = 0;
+	SubscriberRegistry::Status stat = my_hlr.balanceRemaining(imsi,accountBalance);
+	if (stat != SubscriberRegistry::SUCCESS) { LOG(ALERT) << "cannot check account for user " << imsi; }
+	if (prepaid && cost!=0 && accountBalance<cost) {
+		ostringstream os;
+		// TODO: Make customizable
+		os << "Account balance of " << accountBalance << " too low for service cost of " << cost << ".";
+		
+		int status = originate_sm(gConfig.getStr("Bounce.Code").c_str(), imsi,
+								  new_strdup(os.str().c_str()), REQUEST_DESTINATION_SIPURL);
+		if (!status) {
+			next_state = DELETE_ME_STATE;
+			LOG(NOTICE) << "Reply for insufficient funds failed " << status << "! Replied to " << imsi;
+		} else {
+			next_state = REQUEST_DESTINATION_SIPURL;
+		}
+	}
+
+	return next_state;
 }
 
 /*
@@ -1184,6 +1339,7 @@ SMq::originate_sm(const char *from, const char *to, const char *msgtext,
 
 	smpl = originate_half_sm("MESSAGE");
 	response = &*smpl->begin();	// Here's our short_msg_pending!
+	response->cost = 0;
 
 	// Plain text SIP MESSAGE should be repacked before delivery
 	response->need_repack = true;
@@ -1757,6 +1913,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 					osip_strdup (newfrom);
 			}
 			convert_content_type(qmsg, global_relay_contenttype);
+                        // TODO do cost checks here for out-of-network, probably instead of in smsc shortcode or INITIAL_STATE
 			return REQUEST_DESTINATION_SIPURL;
 		    }
 		}
@@ -1772,7 +1929,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 		qmsg->parsed_was_changed();
 
 		free(newdest);		// C interface uses free() not delete
-
+		// TODO do cost checks here for in-network, probably instead of in smsc shortcode or INITIAL_STATE
 		return REQUEST_DESTINATION_SIPURL;
 	}
 
@@ -1826,6 +1983,8 @@ SMq::lookup_uri_hostport (short_msg_pending *qmsg)
 		// We have a phone number.  It needs translation.
 		newport = strdup(global_relay_port.c_str());
 		newhost = strdup(global_relay.c_str());
+		convert_content_type(qmsg, global_relay_contenttype);
+		qmsg->from_relay = true;
 	} else {
 		/* imsi is an IMSI at this point.  */
 		LOG(DEBUG) << "We have an IMSI: " << imsi;
@@ -2407,11 +2566,21 @@ read_short_msg_pending_from_file(char *fname)
 int
 main(int argc, char **argv)
 {
+
   bool please_re_exec = false;
   // short_msg_p_list aq;
   // short_msg *sm;
   // short_msg_pending *smp;
   std::string savefile;
+
+  // Open the CDR file for appending.
+  std::string CDRFilePath = gConfig.getStr("CDRFile");
+  if (CDRFilePath.length()) {
+    gCDRFile = fopen(CDRFilePath.c_str(),"a");
+    if (!gCDRFile) {
+      LOG(ALERT) << "CDR file at " << CDRFilePath.c_str() << " could not be created or opened!";
+    }
+  }
 
   // Set up short-code commands users can type
   init_smcommands(&short_code_map);

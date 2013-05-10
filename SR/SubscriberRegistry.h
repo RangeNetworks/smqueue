@@ -1,6 +1,6 @@
 /*
 * Copyright 2011 Kestrel Signal Processing, Inc.
-* Copyright 2011 Range Networks, Inc.
+* Copyright 2011, 2012 Range Networks, Inc.
 *
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
@@ -73,7 +73,7 @@ class SubscriberRegistry {
 		Resolve an ISDN or other numeric address to an IMSI.
 		@param ISDN Any numeric address, E.164, local extension, etc.
 		@return A C-string to be freed by the caller,
-			 NULL if the ISDN cannot be resolved.
+			NULL if the ISDN cannot be resolved.
 	*/
 	char* getIMSI(const char* ISDN);
 
@@ -102,11 +102,33 @@ class SubscriberRegistry {
 	char* getRegistrationIP(const char* IMSI);
 
 	/**
+		Set a specific variable indexed by imsi from sip_buddies
+		@param imsi The user's IMSI or SIP username.
+		@param key to index into table
+	*/
+	string imsiGet(string imsi, string key);
+
+	/**
+		Set a specific variable indexed by imsi_from sip_buddies
+		@param imsi The user's IMSI or SIP username.
+		@param key to index into table
+		@param value to set indexed by the key
+	*/
+	bool imsiSet(string imsi, string key, string value);
+
+	/**
 		Add a new user to the SubscriberRegistry.
 		@param IMSI The user's IMSI or SIP username.
 		@param CLID The user's local CLID.
 	*/
 	Status addUser(const char* IMSI, const char* CLID);
+
+
+	/**
+		Remove a user from the SubscriberRegistry.
+		@param IMSI The user's IMSI or SIP username.
+	*/
+	Status removeUser(const char* IMSI);
 
 
 	/**
@@ -120,24 +142,6 @@ class SubscriberRegistry {
 
 
 
-	/**
-		Get a 128-bit number for authentication.
-		@param sip sip server (true) or http
-		@param IMSI The user's IMSI or SIP username.
-		@return the 128-bit number in hex
-	*/
-	string getRandForAuthentication(bool sip, string IMSI);
-
-
-	/**
-		Get a 128-bit number for authentication.
-		@param sip sip server (true) or http
-		@param IMSI The user's IMSI or SIP username;
-		@param hRAND upper 64 bits
-		@param lRAND lower 64 bits
-	*/
-	bool getRandForAuthentication(bool sip, string IMSI, uint64_t *hRAND, uint64_t *lRAND);
-
 	void stringToUint(string strRAND, uint64_t *hRAND, uint64_t *lRAND);
 
 	string uintToString(uint64_t h, uint64_t l);
@@ -145,18 +149,6 @@ class SubscriberRegistry {
 	string uintToString(uint32_t x);
 
 	SubscriberRegistry::Status authenticate(bool sip, string IMSI, uint64_t hRAND, uint64_t lRAND, uint32_t SRES);
-
-
-
-	/**
-		Authenticate a handset.
-		@param sip sip server (true) or http
-		@param IMSI The user's IMSI or SIP username.
-		@param rand RAND.
-		@param sres SRES
-		@return ok or fail
-	*/
-	SubscriberRegistry::Status authenticate(bool sip, string IMSI, string rand, string sres);
 
 
 
@@ -182,31 +174,44 @@ class SubscriberRegistry {
 
 
 	/**
-		Get the seconds remaining in a subscriber's account.
+		Get the balance remaining in a subscriber's account.
 		@param IMSI Subscriber's IMSI
-		@param seconds set to number of seconds remaining
+		@param balance current account balance
 		@return SUCCESS or FAILURE
 	*/
-	Status secondsRemaining(const char *IMSI, int &seconds);
+	Status balanceRemaining(const char *IMSI, int &balance);
 
 
 	/**
-		Atomic operation to add seconds to subscriber's account and return remaining seconds
+		Atomic operation to add to the account balance
 		@param IMSI subscriber's IMSI
-		@param secondsToAdd seconds to add (negative to subtract)
-		@param secondsRemaining set to seconds remaining after addition
+		@param moneyToAdd money to add (negative to subtract)
 		@return SUCCESS or FAILURE
 	*/
-	Status addSeconds(const char *IMSI, int secondsToAdd, int &secondsRemaining);
-
+	Status addMoney(const char *IMSI, int moneyToAdd);
 
 	/**
-		Set the number of seconds in a subscriber's account
+		Return the number of "units" of a particular transcation type available in the user's account.
 		@param IMSI subscriber's IMSI
-		@param seconds number of seconds to which to set subscriber's account
+		@param service the service type
+		@param units number of units of this service type remaining
 		@return SUCCESS or FAILURE
 	*/
-	Status setSeconds(const char *IMSI, int seconds);
+	Status serviceUnits(const char *IMSI, const char* service, int &units);
+
+	/**
+		Return the cost per unit of a specific service type.
+	*/
+	int serviceCost(const char* service);
+
+	/**
+		Update the RRLP location for user
+		@param name IMSI to be updated
+		@param lat Latitude
+		@param lon Longitude
+		@param err Approximate Error
+	*/
+	Status RRLPUpdate(string name, string lat, string lon, string err);
 
 
 	private:
@@ -219,15 +224,6 @@ class SubscriberRegistry {
 		@param resultptr Set this to point to the result of executing the statements.
 	*/
 	Status sqlLocal(const char *stmt, char **resultptr);
-
-
-
-	/**
-		Run sql statments over http.
-		@param stmt The sql statements.
-		@param resultptr Set this to point to the result of executing the statements.
-	*/
-	Status sqlHttp(const char *stmt, char **resultptr);
 
 
 
@@ -252,74 +248,6 @@ class SubscriberRegistry {
 
 
 
-
-
-
-};
-
-
-
-/** Class that SubscriberRegistry uses to setup an http query, run it, and get the results. */
-class HttpQuery {
-
-
-
-	public:
-
-
-
-	/**
-		Constructor.
-		@param req The type of http query (sql, (get a)rand(om number) auth(enticate), etc).
-	*/
-	HttpQuery(const char *req);
-
-
-
-	/**
-		Specify a parameter to send in the http query.
-		@param label The label or name for the parameter.
-		@param value The value of the parameter.
-	*/
-	void send(const char *label, string value);
-
-
-
-	/**
-		Log the query.
-		*/
-	void log();
-
-
-	/**
-		This runs the http query.
-		@param sip Whether to call the sip server as opposed to the http server.
-	*/
-	bool http(bool sip);
-
-
-
-	/**
-		Get result from the http query.
-		@param label The label or name of the parameter whose value you want.
-	*/
-	const char *receive(const char *label);
-
-
-
-
-
-	private:
-
-
-
-	/** stores the parameters to send. */
-	map<string,string> sends;
-
-
-
-	/** stores the return parameters. */
-	map<string,string> receives;
 
 
 
