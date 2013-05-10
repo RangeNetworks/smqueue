@@ -2,7 +2,7 @@ PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE CONFIG (KEYSTRING TEXT UNIQUE NOT NULL, VALUESTRING TEXT, STATIC INTEGER DEFAULT 0, OPTIONAL INTEGER DEFAULT 0, COMMENTS TEXT DEFAULT '');
 INSERT INTO "CONFIG" VALUES('savefile', '/tmp/save',0,0,'The file to save SMS messages to when exiting.');
-INSERT INTO "CONFIG" VALUES('Backup.db', '/etc/OpenBTS/smq.backup.db',0,0,'The backup database for SMQ messages');
+INSERT INTO "CONFIG" VALUES('Backup.db', '/tmp/smq.backup.db',0,0,'The backup database for SMQ messages');
 INSERT INTO "CONFIG" VALUES('Log.Level','DEBUG',0,0,'Default logging level when no other level is defined for a file.');
 INSERT INTO "CONFIG" VALUES('Log.Level.smcommands.cpp','DEBUG',0,0,'Log level for short codes.');
 INSERT INTO "CONFIG" VALUES('Log.Alarms.Max','20',0,0,'Maximum number of alarms to remember inside the application.');
@@ -57,7 +57,7 @@ INSERT INTO "CONFIG" VALUES('SubscriberRegistry.A3A8','/OpenBTS/comp128',0,0,'Lo
 INSERT INTO "CONFIG" VALUES('SubscriberRegistry.HTTP.Server','http://127.0.0.1/cgi/subscriberserver.cgi',0,0,'URL of the subscriber registry server.');
 INSERT INTO "CONFIG" VALUES('SubscriberRegistry.db','/var/lib/asterisk/sqlite3dir/sqlite3.db',0,0,'The location of the sqlite3 database holding the subscriber registry.');
 INSERT INTO "CONFIG" VALUES('SC.SMSC.Code','smsc',0,0,'The SMSC entry point. There is where OpenBTS sends SIP MESSAGES to.');
-INSERT INTO "CONFIG" VALUES('CDRFile','/var/lib/OpenBTS/smq.cdr',0,1,'');
+INSERT INTO "CONFIG" VALUES('CDRFile','/tmp/smq.cdr',0,1,'');
 INSERT INTO "CONFIG" VALUES('ServiceType.Networked','out-of-network-SMS',0,1,'Rate service name for out-of-network SMS messages.');
 INSERT INTO "CONFIG" VALUES('SC.Balance.Code','1000',0,0,'Short code for account balance queries.');
 INSERT INTO "CONFIG" VALUES('SC.Balance.String','Your account balance is %d',0,1,'Balance message string.');
