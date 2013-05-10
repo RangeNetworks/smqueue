@@ -1984,7 +1984,7 @@ SMq::lookup_uri_hostport (short_msg_pending *qmsg)
 		newport = strdup(global_relay_port.c_str());
 		newhost = strdup(global_relay.c_str());
 		convert_content_type(qmsg, global_relay_contenttype);
-		qmsg->from_relay = true;
+		//qmsg->from_relay = true;
 	} else {
 		/* imsi is an IMSI at this point.  */
 		LOG(DEBUG) << "We have an IMSI: " << imsi;
