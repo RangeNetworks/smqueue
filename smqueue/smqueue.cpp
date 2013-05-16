@@ -1787,19 +1787,23 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 bool SMq::to_is_deliverable(const char *to)
 {
 	bool isDeliverable = false;
-	char *newdest = my_hlr.getIMSI(to);
-	
-	if (newdest
-	 && 0 != strncmp("imsi", newdest, 4) 
-	 && 0 != strncmp("IMSI", newdest, 4)) {
-		free(newdest);
-		newdest = NULL;
+
+	isDeliverable = (short_code_map.find(to) != short_code_map.end());
+	if (!isDeliverable) {
+		char *newdest = my_hlr.getIMSI(to);
+		
+		if (newdest
+		    && 0 != strncmp("imsi", newdest, 4)
+		    && 0 != strncmp("IMSI", newdest, 4)) {
+                	free(newdest);
+			newdest = NULL;
+		}
+
+		isDeliverable = (newdest != NULL);
+
+		if (newdest)
+			free(newdest);
 	}
-
-	isDeliverable = (newdest != NULL);
-
-	if (newdest)
-		free(newdest);
 
 	return isDeliverable;
 }

@@ -349,9 +349,8 @@ short_code_action submitSMS(const char *imsi, const TLSubmit& submit,
 	// Send to smqueue or HTTP gateway, depending on what's defined in the config.
 	// And whether of not we can resolve the destination, and a global relay does not exist,
 	// AND the message is not to a shortcode.
-	short_code_map_t::const_iterator shortit = short_code_map.find(address.digits());
 	if (!gConfig.defines("SIP.GlobalRelay.IP") && gConfig.defines("SMS.HTTPGateway.URL") &&
-		!destinationNumber && (shortit == short_code_map.end()))
+		!destinationNumber && !isShortCode)
 		// If there is an external HTTP gateway, use it.
 		return sendHTTP(address.digits(), body);
 
