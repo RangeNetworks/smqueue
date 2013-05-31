@@ -1357,7 +1357,7 @@ SMq::originate_sm(const char *from, const char *to, const char *msgtext,
 	osip_message_set_to(response->parsed, toline.str().c_str());
 
 	ostringstream uriline;
-	uriline << "sip:" << to << "@" << my_ipaddress << ":" << gConfig.getStr("SIP.Default.BTSPort", "5062").c_str();
+	uriline << "sip:" << to << "@" << my_ipaddress << ":" << gConfig.getStr("SIP.Default.BTSPort").c_str();
 	osip_uri_init(&response->parsed->req_uri);
 	osip_uri_parse(response->parsed->req_uri, uriline.str().c_str());
 
