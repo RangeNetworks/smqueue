@@ -2214,13 +2214,15 @@ SMq::handle_datagram(int len, char* buffer, long long timestamp, bool insert){
 				    << " for "
 				    << smp->parsed->req_uri->username
 				    << ".";
+			insert_new_message (*smpl, insert);
 		} else {
 		        LOG(INFO) << "Got SMS "
 				  << smp->parsed->status_code
 				  << " Response '"
 				  << smp->qtag << "'.";
+			//don't insert responses
+			insert_new_message (*smpl, false);
 		}
-		insert_new_message (*smpl, insert);
 		errcode = 202;	// Accepted and queued.
 	} else {
 	        LOG(WARNING) << "Received bad " << errcode

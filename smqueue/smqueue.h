@@ -167,9 +167,6 @@ class short_msg {
 		from_relay(false),    
 		timestamp(get_msecs())
 	{
-	        struct timeval tv;
-		gettimeofday(&tv, NULL);
-		timestamp = tv.tv_usec;
 	}
 	// Make a short message, perhaps taking responsibility for deleting
 	// the "new"-allocated memory passed in.

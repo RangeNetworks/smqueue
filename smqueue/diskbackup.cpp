@@ -94,6 +94,7 @@ SQLiteBackup::~SQLiteBackup()
 
 backup_msg_list* SQLiteBackup::get_stored_messages(){
     //record stale messages
+    //should be config variable at some point -kurtis
     long long min_time = get_msecs() - (72 * 60 * 60 * MICROSECONDS); //hrs*minutes*seconds*microseconds
     char cmd[100];
     sprintf(cmd,"SELECT * FROM MESSAGES WHERE timestamp < %lld", min_time); 
@@ -149,6 +150,6 @@ int SQLiteBackup::remove(long long timestamp)
     ostringstream os;
     os << "DELETE from MESSAGES WHERE timestamp=";
     os << timestamp;
-    LOG(INFO) << "Removing " << timestamp << " from backup db";
+    LOG(INFO) << "Trying to remove " << timestamp << " from backup db";
     return sqlite3_command(db(), os.str().c_str());
 }
