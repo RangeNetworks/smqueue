@@ -45,8 +45,6 @@
 #include "SMSMessages.h"
 using namespace SMS;
 
-long long get_msecs();
-
 namespace SMqueue {
 
 /* Maximum text size of an SMS message.  */

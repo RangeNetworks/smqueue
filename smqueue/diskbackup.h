@@ -30,6 +30,7 @@
 #define DISK_BACKUP_H
 
 #include <Logger.h>
+#include <sys/time.h>
 #include <string.h>
 #include "sqlite3util.h"
 
@@ -41,6 +42,9 @@ typedef struct {
 } backup_msg;
 
 typedef std::list<backup_msg> backup_msg_list;
+
+//kurtis utility function
+long long get_msecs();
 
 class SQLiteBackup {
 

@@ -45,6 +45,16 @@ static const char* createMessageTable = {
     ")"
 };
 
+//kurtis utility function
+long long get_msecs(){
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	long long seconds = tv.tv_sec;
+	seconds *= 1000000;
+	seconds += tv.tv_usec;
+	return seconds;
+}
+
 int SQLiteBackup::init()
 {
     string ldb = gConfig.getStr("Backup.db");
@@ -81,13 +91,31 @@ SQLiteBackup::~SQLiteBackup()
 }
 
 backup_msg_list* SQLiteBackup::get_stored_messages(){
-    // Prepare the statement.
-    string cmd = "SELECT timestamp,message FROM MESSAGES";
+    //record stale messages
+    long long min_time = get_msecs() - 72 * 60 * 60 * 1000; //hrs*minutes*seconds*milliseconds
+    char cmd[100];
+    sprintf(cmd,"SELECT * FROM MESSAGES WHERE timestamp < %lld", min_time); 
     sqlite3_stmt *stmt;
-    if (sqlite3_prepare_statement(mDB,&stmt,cmd.c_str())) return NULL;
+    if (sqlite3_prepare_statement(mDB,&stmt,cmd)) return NULL;
+    int src = sqlite3_run_query(mDB,stmt);
+    int i = 0;
+    while (src==SQLITE_ROW) {
+        i++;
+	src = sqlite3_run_query(mDB,stmt);
+    }
+    LOG(NOTICE) << "REMOVING " << i << " STALE MESSAGES";
+
+    //remove stale messages
+    sprintf(cmd,"DELETE FROM MESSAGES WHERE timestamp < %lld", min_time); 
+    if (sqlite3_prepare_statement(mDB,&stmt,cmd)) return NULL;
+    src = sqlite3_run_query(mDB,stmt);
+
+    //get the remaining messages
+    sprintf(cmd,"SELECT timestamp,message FROM MESSAGES");
+    if (sqlite3_prepare_statement(mDB,&stmt,cmd)) return NULL;
     // Read the result.
     backup_msg_list* list = new backup_msg_list(0);
-    int src = sqlite3_run_query(mDB,stmt);
+    src = sqlite3_run_query(mDB,stmt);
     while (src==SQLITE_ROW) {
 	long long timestamp = sqlite3_column_int(stmt,0);
 	string text = (char *)sqlite3_column_text(stmt,1);

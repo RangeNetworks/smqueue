@@ -174,16 +174,6 @@ bool print_as_we_validate = false;      // Debugging
  */
 short_code_map_t short_code_map;
 
-//kurtis utility function
-long long get_msecs(){
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    long long seconds = tv.tv_sec;
-    seconds *= 1000000;
-    seconds += tv.tv_usec;
-    return seconds;
-}
-
 /* Release memory from osip library */
 void
 osip_mem_release()
