@@ -850,7 +850,7 @@ class SMq {
 	/* handle an incoming datagram */
 	/* timestamp is used if you want to set the timestamp for an incoming message
 	   0 will cause a new timestamp to be generated */
-	void handle_datagram(int len, char* buffer, long long timestamp);
+	void handle_datagram(int len, char* buffer, long long timestamp, bool insert=true);
 
 	// Main loop listening for dgrams and processing them.
 	void main_loop();
@@ -966,21 +966,21 @@ class SMq {
 
 #if 0
 	/* Insert a newly incoming message into the queue. */
-	void insert_new_message(std::string str) {
+	void insert_new_message(std::string str, bool insert=true) {
 		short_msg_p_list smpl(1);
 		(*smpl.begin()).initialize(str);
-		insert_new_message (smpl);
+		insert_new_message (smpl, insert);
 	}
 	// Insert a new message, perhaps taking responsibility for deleting
 	// the "new"-allocated memory passed in.
   	void insert_new_message(int len, char * const cstr,
-	     bool use_my_memory) {
+				bool use_my_memory, bool insert=true) {
 		short_msg_pending smp (len, cstr, use_my_memory);
-		insert_new_message (smp);
+		insert_new_message (smp, insert);
 	}
-	void insert_new_message(short_msg &sm) {
+	void insert_new_message(short_msg &sm, bool insert=true) {
 		short_msg_pending smp (sm);
-		insert_new_message (smp);
+		insert_new_message (smp, insert);
 	}
 #endif
 	// For memory allocation simplicity, it's easiest to create
@@ -989,20 +989,20 @@ class SMq {
 	// entry itself off the original list (which can then be discarded).
 	// This version lets the state and timeout be set.
 	void insert_new_message(short_msg_p_list &smp, enum sm_state s, 
-			time_t t) {
-		if (!my_backup.insert(smp.begin()->timestamp, smp.begin()->text)){
+				time_t t, bool insert = true) {
+		if (insert && !my_backup.insert(smp.begin()->timestamp, smp.begin()->text)){
 			LOG(INFO) << "Unable to backup message: " << time_sorted_list.begin()->timestamp;
 		}
 		time_sorted_list.splice (time_sorted_list.begin(), smp);
 		time_sorted_list.begin()->set_state (s, t);
 	}
 	// This version lets the initial state be set.
-	void insert_new_message(short_msg_p_list &smp, enum sm_state s) {
-		insert_new_message(smp, s, 0);
+	void insert_new_message(short_msg_p_list &smp, enum sm_state s, bool insert=true) {
+		insert_new_message(smp, s, 0, insert);
 	}
 	//Basic version
-	void insert_new_message(short_msg_p_list &smp) {
-		insert_new_message(smp, INITIAL_STATE);
+	void insert_new_message(short_msg_p_list &smp, bool insert=true) {
+		insert_new_message(smp, INITIAL_STATE, insert);
 	}
 
 	/* Debug dump of the queue and the SMq class in general. */

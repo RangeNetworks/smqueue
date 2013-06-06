@@ -119,7 +119,7 @@ backup_msg_list* SQLiteBackup::get_stored_messages(){
     backup_msg_list* list = new backup_msg_list(0);
     src = sqlite3_run_query(mDB,stmt);
     while (src==SQLITE_ROW) {
-	long long timestamp = sqlite3_column_int(stmt,0);
+	long long timestamp = sqlite3_column_int64(stmt,0);
 	string text = (char *)sqlite3_column_text(stmt,1);
 	backup_msg msg;
 	msg.timestamp = timestamp;

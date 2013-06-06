@@ -1353,9 +1353,9 @@ SMq::originate_sm(const char *from, const char *to, const char *msgtext,
 
 	osip_message_set_content_type(response->parsed, "text/plain");
 	response->content_type = short_msg::TEXT_PLAIN;
-    size_t len = strlen(msgtext);
-    if (len > SMS_MESSAGE_MAX_LENGTH)
-        len = SMS_MESSAGE_MAX_LENGTH;
+	size_t len = strlen(msgtext);
+	if (len > SMS_MESSAGE_MAX_LENGTH)
+		len = SMS_MESSAGE_MAX_LENGTH;
 	osip_message_set_body(response->parsed, msgtext, len);
 
 	// We've altered the text and the parsed version controls.
@@ -2162,7 +2162,7 @@ SMq::respond_sip_ack(int errcode, short_msg_pending *smp,
 }
 
 void
-SMq::handle_datagram(int len, char* buffer, long long timestamp){
+SMq::handle_datagram(int len, char* buffer, long long timestamp, bool insert){
         short_msg_p_list *smpl;
 	short_msg_pending *smp;
 	int errcode;
@@ -2220,7 +2220,7 @@ SMq::handle_datagram(int len, char* buffer, long long timestamp){
 				  << " Response '"
 				  << smp->qtag << "'.";
 		}
-		insert_new_message (*smpl);
+		insert_new_message (*smpl, insert);
 		errcode = 202;	// Accepted and queued.
 	} else {
 	        LOG(WARNING) << "Received bad " << errcode
@@ -2262,7 +2262,7 @@ SMq::main_loop()
 	    LOG (INFO) << "backup got " << bmsg->text;
 	    strncpy(buffer, bmsg->text.c_str(), 5000);
 	    LOG(INFO) << "Inserting from backup " << bmsg->timestamp << ":" << buffer;
-	    handle_datagram(strnlen(buffer, 5000), buffer, bmsg->timestamp);
+	    handle_datagram(strnlen(buffer, 5000), buffer, bmsg->timestamp, false);
 	    bmsg++;
 	}
 	delete old_msgs;
