@@ -37,6 +37,8 @@ extern ConfigurationTable gConfig;
 
 using namespace std;
 
+#define MICROSECONDS 1000000L
+
 //basically a copy of the datastructure but in a table
 static const char* createMessageTable = {
     "CREATE TABLE IF NOT EXISTS MESSAGES ("
@@ -50,7 +52,7 @@ long long get_msecs(){
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	long long seconds = tv.tv_sec;
-	seconds *= 1000000;
+	seconds *= MICROSECONDS;
 	seconds += tv.tv_usec;
 	return seconds;
 }
@@ -92,7 +94,7 @@ SQLiteBackup::~SQLiteBackup()
 
 backup_msg_list* SQLiteBackup::get_stored_messages(){
     //record stale messages
-    long long min_time = get_msecs() - 72 * 60 * 60 * 1000; //hrs*minutes*seconds*milliseconds
+    long long min_time = get_msecs() - (72 * 60 * 60 * MICROSECONDS); //hrs*minutes*seconds*microseconds
     char cmd[100];
     sprintf(cmd,"SELECT * FROM MESSAGES WHERE timestamp < %lld", min_time); 
     sqlite3_stmt *stmt;
