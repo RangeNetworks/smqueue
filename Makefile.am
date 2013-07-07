@@ -20,6 +20,8 @@
 
 include $(top_srcdir)/Makefile.common
 
+DESTDIR := 
+
 AM_CXXFLAGS = -Wall -O2 -g -pthread -ldl
 
 # Order must be preserved
@@ -41,6 +43,8 @@ EXTRA_DIST = \
 	COPYING \
 	README
 
+install: all
+	$(MAKE) -C ./smqueue install
 
 dox: FORCE
 	doxygen doxconfig

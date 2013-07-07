@@ -20,6 +20,8 @@
 
 include $(top_srcdir)/Makefile.common
 
+DESTDIR := 
+
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
 AM_CXXFLAGS = -O3 -g -lpthread
 
@@ -54,3 +56,9 @@ smqueue_LDADD = \
 	$(SR_LA) \
 	$(SIP_LA) \
 	$(OSIP_LIBS)
+
+install: smqueue
+	mkdir -p "$(DESTDIR)/OpenBTS/"
+	install smqueue "$(DESTDIR)/OpenBTS/"
+	mkdir -p "$(DESTDIR)/etc/OpenBTS/"
+	install smqueue.example.sql "$(DESTDIR)/etc/OpenBTS/"

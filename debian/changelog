@@ -1,0 +1,11 @@
+smqueue-public (2.8ubuntu1) precise; urgency=low
+
+  * Initial release for public
+
+ -- Kurtis Heimerl <kheimerl@darth-tyranus>  Sat, 06 Jul 2013 20:09:17 -0700
+
+smqueue-public (2.8) UNRELEASED; urgency=low
+
+    * Test
+
+ -- Donald C. Kirker <donald.kirker@rangenetworks.com> Mon, 22 Apr 2013 00:11:00 -0700
