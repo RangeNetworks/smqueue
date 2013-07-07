@@ -18,7 +18,7 @@ set -e
 
 remove()
 {
-    killall runloop.smqueue.sh &>/dev/null
+    killall smqueue
 }
 
 case "$1" in
