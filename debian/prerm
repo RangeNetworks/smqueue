@@ -16,12 +16,14 @@ set -e
 # for details, see http://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
+APP=smqueue
+
 remove()
 {
-    if [ "$(pidof smqueue)" ]; then
-	killall smqueue
+    if [ "$(pidof $APP)" ]; then
+	killall $APP
     else
-	echo "smqueue not running"
+	echo "$APP not running"
     fi
 }
 
