@@ -18,7 +18,11 @@ set -e
 
 remove()
 {
-    killall smqueue
+    if [ "$(pidof smqueue)" ]; then
+	killall smqueue
+    else
+	echo "smqueue not running"
+    fi
 }
 
 case "$1" in

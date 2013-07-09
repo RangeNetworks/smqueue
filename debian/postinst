@@ -19,15 +19,15 @@ set -e
 
 configure()
 {
-DATE=$(date --rfc-3339='date')
-CONFIG_BACKUP=/etc/OpenBTS/smqueue.dump-$DATE
+DB_LOC=/etc/OpenBTS/smqueue.db
+DATE=$(date +'%Y-%m-%d.%H:%M:%S')
+CONFIG_BACKUP=$DB_LOC.dump-$DATE
 
-
-if [ ! -e $CONFIG_BACKUP ]; then
-        sqlite3 /etc/OpenBTS/smqueue.db ".dump" > $CONFIG_BACKUP
+if [ -e $DB_LOC ]; then
+        sqlite3 $DB_LOC ".dump" > $CONFIG_BACKUP
 fi
 
-sqlite3 /etc/OpenBTS/smqueue.db ".read /etc/OpenBTS/smqueue.example.sql" &>/dev/null
+sqlite3 $DB_LOC ".read /etc/OpenBTS/smqueue.example.sql" &>/dev/null
 
 if [ ! -e /var/lib/OpenBTS ]; then
 	mkdir /var/lib/OpenBTS
