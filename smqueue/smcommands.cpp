@@ -282,7 +282,7 @@ shortcode_register (const char *imsi, const char *msgtext,
 	}
 	*q++ = '\0';		// Null-terminate it.
    if (!badnum) {
-	bool override = gConfig.defines("SC.Register.Digits.Override") && (exclaim==3);
+	bool override = gConfig.getBool("SC.Register.Digits.Override") && (exclaim==3);
 	if (!override) {
 		if ((seendig > gConfig.getNum("SC.Register.Digits.Max")) ||
 		    (seendig < gConfig.getNum("SC.Register.Digits.Min"))) {
@@ -401,6 +401,8 @@ SMqueue::init_smcommands (short_code_map_t *scm)
 		(*scm)[gConfig.getStr("SC.WhiplashQuit.Code").c_str()] = whiplash_quit;
 	if (gConfig.defines("SC.SMSC.Code"))
 		(*scm)[gConfig.getStr("SC.SMSC.Code").c_str()] = shortcode_smsc;
-
+	if (gConfig.defines("SC.Balance.Code"))
+		(*scm)[gConfig.getStr("SC.Balance.Code").c_str()] = shortcode_balance;
+		
 //	(*scm)["666"]    = shortcode_text_access;
 }

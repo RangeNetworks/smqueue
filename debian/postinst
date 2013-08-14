@@ -23,15 +23,11 @@ DB_LOC=/etc/OpenBTS/smqueue.db
 DATE=$(date +'%Y-%m-%d.%H:%M:%S')
 CONFIG_BACKUP=$DB_LOC.dump-$DATE
 
-if [ -e $DB_LOC ]; then
+if [ ! -e $DB_LOC ]; then
         sqlite3 $DB_LOC ".dump" > $CONFIG_BACKUP
 fi
 
 sqlite3 $DB_LOC ".read /etc/OpenBTS/smqueue.example.sql" &>/dev/null
-
-if [ ! -e /var/lib/OpenBTS ]; then
-	mkdir /var/lib/OpenBTS
-fi
 
 }
 

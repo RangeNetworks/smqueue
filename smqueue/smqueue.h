@@ -34,7 +34,7 @@
 #include <stdio.h>
 
 #include "smnet.h"			// My network support
-#include <SubscriberRegistry.h>                        // My home location register
+#include <SubscriberRegistry.h>			// My home location register
 #include <Logger.h>
 #include "diskbackup.h"
 
@@ -44,6 +44,7 @@
 #undef CR
 #include "SMSMessages.h"
 using namespace SMS;
+
 
 namespace SMqueue {
 
@@ -164,7 +165,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
-		from_relay(false),    
+		from_relay(false),
 		timestamp(get_msecs())
 	{
 	}
@@ -181,8 +182,8 @@ class short_msg {
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
-	        need_repack(true),
-		from_relay(false),    
+		need_repack(true),
+		from_relay(false),
 		timestamp(get_msecs())
 	{
 		if (!use_my_memory) {
@@ -210,7 +211,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
-		from_relay(false),    
+		from_relay(sm.from_relay),
 		timestamp(get_msecs())
 	{
 		if (text_length) {
@@ -220,6 +221,27 @@ class short_msg {
 		}
 	};
 
+#if 0
+	short_msg (std::string str) :
+		text_length (str.length()),
+		text (0),
+		parsed_is_valid (false),
+		parsed_is_better (false),
+		parsed (NULL),
+		content_type(UNSUPPORTED_CONTENT),
+		convert_content_type(UNSUPPORTED_CONTENT),
+		rp_data(NULL),
+		tl_message(NULL),
+		ms_to_sc(false),
+		need_repack(false),
+		timestamp(get_msecs())
+	{
+		text = new char [text_length+1];
+		strncpy(text, str.data(), text_length);
+		text[text_length] = '\0';
+	};
+#endif
+	
 	/* Disable operator= to avoid pointer-sharing problems */
 	private:
 	short_msg & operator= (const short_msg &rvalue);
@@ -501,7 +523,7 @@ class short_msg_pending: public short_msg {
 		next_action_time (0),
 		retries (0),
 		cost(-1),
-		service(""),		    
+		service(""),
 		// srcaddr({0}),  // can't seem to initialize an array?
 		srcaddrlen(0),
 		qtag (NULL),
@@ -510,6 +532,21 @@ class short_msg_pending: public short_msg {
 	{
 	}
 
+#if 0
+	short_msg_pending (std::string str) : 
+		short_msg (str),
+		state (NO_STATE),
+		next_action_time (0),
+		retries (0),
+		cost(-1),
+		// srcaddr({0}),  // can't seem to initialize an array?
+		srcaddrlen(0),
+		qtag (NULL),
+		qtaghash (0),
+		linktag (NULL)
+	{
+	}
+#endif
 
 	// 
 	// We would've liked to declare this next function PRIVATE,
@@ -524,7 +561,7 @@ class short_msg_pending: public short_msg {
 		next_action_time (smp.next_action_time),
 		retries (smp.retries),
 		cost(smp.cost),
-		service(""),
+		service(smp.service),
 		// srcaddr({0}),  // can't seem to initialize an array?
 		srcaddrlen(smp.srcaddrlen),
 		qtag (NULL),
@@ -585,6 +622,21 @@ class short_msg_pending: public short_msg {
 		short_msg::initialize (len, cstr, use_my_memory);
 		// initguts();
 	}
+
+#if 0
+	short_msg_pending (std::string str) : 
+		short_msg (str),
+		state (NO_STATE),
+		next_action_time (0),
+		retries (0),
+		// srcaddr({0}),  // can't seem to initialize an array?
+		srcaddrlen(0),
+		qtag (NULL),
+		qtaghash (0),
+		linktag (NULL)
+	{
+	}
+#endif
 
 	/* Optimize this later so we don't make so many kernel calls. */
 	time_t gettime () { return time(NULL); };
@@ -854,7 +906,7 @@ class SMq {
 
 	/* If nothing happens for a while, handle that.  */
 	void process_timeout();
-
+	
 	/* Verify that sufficient funds exist to send a particular message. */
 	enum sm_state verify_funds(short_msg_p_list::iterator& qmsg);
 
@@ -961,25 +1013,6 @@ class SMq {
 	enum sm_state
 	lookup_uri_imsi (short_msg_pending *qmsg);
 
-#if 0
-	/* Insert a newly incoming message into the queue. */
-	void insert_new_message(std::string str, bool insert=true) {
-		short_msg_p_list smpl(1);
-		(*smpl.begin()).initialize(str);
-		insert_new_message (smpl, insert);
-	}
-	// Insert a new message, perhaps taking responsibility for deleting
-	// the "new"-allocated memory passed in.
-  	void insert_new_message(int len, char * const cstr,
-				bool use_my_memory, bool insert=true) {
-		short_msg_pending smp (len, cstr, use_my_memory);
-		insert_new_message (smp, insert);
-	}
-	void insert_new_message(short_msg &sm, bool insert=true) {
-		short_msg_pending smp (sm);
-		insert_new_message (smp, insert);
-	}
-#endif
 	// For memory allocation simplicity, it's easiest to create
 	// new messages as a 1-entry short_msg_p_list and then move
 	// them to the real list.  Note that this moves the message's list

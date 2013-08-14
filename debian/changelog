@@ -1,10 +1,10 @@
-smqueue-public (2.8) precise; urgency=low
+smqueue-public (3.2) UNRELEASED; urgency=low
 
-  * Initial release for public
+  * Public release
 
- -- Kurtis Heimerl <kheimerl@darth-tyranus>  Sat, 06 Jul 2013 20:09:17 -0700
+ -- Kurtis <kheimerl@rangenetworks.com>  Thu, 01 Aug 2013 16:13:52 -0700
 
-smqueue-public (2.8) UNRELEASED; urgency=low
+smqueue-public (3.2) UNRELEASED; urgency=low
 
     * Test
 

@@ -20,7 +20,31 @@
 
 include $(top_srcdir)/Makefile.common
 
+AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
+AM_CXXFLAGS = -Wall -g -losipparser2 -losip2 -lc -lpthread
+
+noinst_PROGRAMS = \
+	smtest \
+	smrelaytest \
+	sminterface
+
+smtest_SOURCES = \
+	smtest.cpp 
+smtest_LDADD = \
+	$(COMMON_LA)
+
+smrelaytest_SOURCES = \
+	smrelaytest.cpp
+smrelaytest_LDADD = \
+	$(COMMON_LA)
+
+sminterface_SOURCES = \
+	sminterface.cpp
+sminterface_LDADD = \
+	$(COMMON_LA) \
+	$(SQLITE_LA)
+
 EXTRA_DIST = \
-	Makefile.standalone \
-	README
+	smtest.h \
+	smrelaytest.h
 

@@ -35,7 +35,8 @@ SUBDIRS = \
 	SMS \
 	doc \
 	tools \
-	smqueue
+	smqueue \
+	testing
 
 EXTRA_DIST = \
 	INSTALLATION \

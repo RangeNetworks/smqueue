@@ -27,7 +27,7 @@ AM_CXXFLAGS = -O3 -g -lpthread
 
 EXTRA_DIST = \
 	README.smqueue \
-	smqueue.example.sql
+	smqueue.config.example
 
 noinst_PROGRAMS = \
 	smqueue
@@ -62,3 +62,4 @@ install: smqueue
 	install smqueue "$(DESTDIR)/OpenBTS/"
 	mkdir -p "$(DESTDIR)/etc/OpenBTS/"
 	install smqueue.example.sql "$(DESTDIR)/etc/OpenBTS/"
+

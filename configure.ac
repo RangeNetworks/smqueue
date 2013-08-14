@@ -18,7 +18,7 @@ dnl You should have received a copy of the GNU General Public License
 dnl along with this program.  If not, see <http://www.gnu.org/licenses/>.
 dnl
 
-AC_INIT(smqueue,3.0PUBLIC)
+AC_INIT(smqueue,TRUNK)
 AC_PREREQ(2.57)
 AC_CONFIG_SRCDIR([config/Makefile.am])
 AC_CONFIG_AUX_DIR([.])	
@@ -75,6 +75,7 @@ AC_CONFIG_FILES([\
     SR/Makefile \
     sqlite3/Makefile \
     smqueue/Makefile \
+    testing/Makefile \
 ])
 
 AC_OUTPUT

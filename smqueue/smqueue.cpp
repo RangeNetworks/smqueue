@@ -35,18 +35,20 @@
 
 #undef WARNING
 
+#include <Globals.h>
 #include <Logger.h>
-#include <Configuration.h>	// DAB
 
 using namespace std;
 using namespace SMqueue;
 
 /* The global config table. */
 // DAB
-ConfigurationTable gConfig("/etc/OpenBTS/smqueue.db");
+ConfigurationKeyMap getConfigurationKeys();
+ConfigurationTable gConfig("/etc/OpenBTS/smqueue.db", "smqueue", getConfigurationKeys());
 
 /* The global CDR file. */
 FILE * gCDRFile = NULL;
+
 
 /* We try to centralize most of the timeout values into this table.
    Occasionally the code might do something different where it knows
@@ -383,7 +385,7 @@ SMq::process_timeout()
 				     << qmsg->parsed->req_uri->host
 				     << ":" << qmsg->parsed->req_uri->port
 				     << ".";
-
+			
 			// FIXME, if we can't deliver the datagram we
 			// just do the same thing regardless of the result.
 			if (my_network.deliver_msg_datagram(&*qmsg))
@@ -439,12 +441,13 @@ SMq::process_timeout()
 void
 increase_acked_msg_timeout(short_msg_pending *msg)
 {
-       time_t timeout = TT;
-       if (gConfig.defines("SIP.Timeout.ACKedMessageResend")) {
-               timeout = gConfig.getNum("SIP.Timeout.ACKedMessageResend");
-       }
+	time_t timeout = TT;
 
-       msg->set_state(msg->state, msg->gettime() + timeout);
+	if (gConfig.defines("SIP.Timeout.ACKedMessageResend")) {
+		timeout = gConfig.getNum("SIP.Timeout.ACKedMessageResend");
+	}
+
+	msg->set_state(msg->state, msg->gettime() + timeout);
 }
 
 
@@ -560,7 +563,7 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 				time_sorted_list, sent_msg);
 		if(!my_backup.remove(resplist.begin()->timestamp)){
 			LOG(INFO) << "Unable to remove message: " << resplist.begin()->timestamp;
-		}		
+		}	
 		resplist.pop_front();	// pop and delete the sent_msg.
 
 		// FIXME, consider breaking loose any other messages for
@@ -609,7 +612,7 @@ SMq::handle_response(short_msg_p_list::iterator qmsgit)
 
 	if(!my_backup.remove(resplist.begin()->timestamp)){
 		LOG(INFO) << "Unable to remove message: " << resplist.begin()->timestamp;
-	}		
+	}
 }
 
 /*
@@ -639,6 +642,29 @@ SMq::find_queued_msg_by_tag(short_msg_p_list::iterator &mymsg,
 	return find_queued_msg_by_tag(mymsg, tag, mymsg->taghash_of(tag));
 }
 
+
+static bool relaxed_verify_relay(osip_list_t *vias, const char *host, const char *port)
+{
+	bool from_relay = false;
+
+	if (vias && host && port) {
+		int size = osip_list_size(vias);
+
+		for (int i = 0; i < size; i++) {
+			osip_via_t *via = (osip_via_t *)osip_list_get(vias, i);
+			const char *via_host = via_get_host(via);
+			const char *via_port = via_get_port(via);
+
+			if (via_host && via_port &&
+			    !strcasecmp(host, via_host) && !strcasecmp(port, via_port)) {
+				from_relay = true;
+				break;
+			}
+		}
+	}
+
+	return from_relay;
+}
 
 /*
  * Validate a short_msg by parsing it and then checking the parse
@@ -811,6 +837,9 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 	// error_infos - no restrictions
 
 	// From: needs an extra element which is a message tag?  FIXME if wrong
+	// (pat 7-23-2013) The opposite is true: A sip MESSAGE must not have tags in the from and To lines because it is not an INVITE.
+	// However, we should not throw an error for existence or non-existence of the tags; the best recovery would be
+	// to simply ignore this as an error and return the tag in the reply to the MESSAGE if the tag exists.
 	if (!p->from || !p->from->url 
 	    || p->from->gen_params.nb_elt < 1
 	    || !p->from->gen_params.node) {
@@ -864,8 +893,11 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 	// We need to see if this is a message form the relay. If it is, we can process a user lookup here
 	// BUT ONLY IF the message is not a response (ACK) AND MUST BE a SIP MESSAGE.
 	if (should_early_check && !MSG_IS_RESPONSE(p) && (0 == strcmp("MESSAGE", p->sip_method))
-		&& manager->my_network.msg_is_from_relay(srcaddr, srcaddrlen,
-		manager->global_relay.c_str(), manager->global_relay_port.c_str())) {
+		&& (manager->my_network.msg_is_from_relay(srcaddr, srcaddrlen,
+		manager->global_relay.c_str(), manager->global_relay_port.c_str()) ||
+		(gConfig.getBool("SIP.GlobalRelay.RelaxedVerify") &&
+		 relaxed_verify_relay(&p->vias, manager->global_relay.c_str(), manager->global_relay_port.c_str())
+		))) {
 		// We cannot deliver the message since we cannot resolve the TO
 		if (!manager->to_is_deliverable(user))
 			return 404;
@@ -896,7 +928,9 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 // the qtag.  
 // FIXME, we assume that the CSEQ, Call-ID, and From tag all are
 // components that, in combination, identify the message uniquely.
+// (pat) There should not be a from-tag in a MESSAGE; the from- and to-tags are used only for INVITE.
 // FIXME!  The spec is unpleasantly unclear about this.
+// (pat) RFC3261 17.1.3 is clear: we are supposed to use either the via-branch or the call-id+cseq to identify the message.
 // Result is 0 for success, or 3-digit integer error code if error.
 // FIXME!  The Call-ID changes each time we re-send an SMS.
 //  When we get a 200 "Delivered" message for ANY of those
@@ -1168,6 +1202,7 @@ enum sm_state SMq::verify_funds(short_msg_p_list::iterator& qmsg)
 	return next_state;
 }
 
+
 /*
  * Check the username in the To: field, perhaps in the From: fiend,
  * perhaps in the URI in the MESSAGE line at the top...
@@ -1353,9 +1388,9 @@ SMq::originate_sm(const char *from, const char *to, const char *msgtext,
 
 	osip_message_set_content_type(response->parsed, "text/plain");
 	response->content_type = short_msg::TEXT_PLAIN;
-	size_t len = strlen(msgtext);
-	if (len > SMS_MESSAGE_MAX_LENGTH)
-		len = SMS_MESSAGE_MAX_LENGTH;
+    size_t len = strlen(msgtext);
+    if (len > SMS_MESSAGE_MAX_LENGTH)
+        len = SMS_MESSAGE_MAX_LENGTH;
 	osip_message_set_body(response->parsed, msgtext, len);
 
 	// We've altered the text and the parsed version controls.
@@ -1389,12 +1424,12 @@ SMq::bounce_message(short_msg_pending *sent_msg, const char *errstr)
 	std::string thetext;
 	int status;
 
+	username = sent_msg->parsed->to->url->username;
+	thetext = sent_msg->get_text();
+
 	LOG(NOTICE) << "Bouncing " << sent_msg->qtag << " from "
 	     << sent_msg->parsed->from->url->username  // his phonenum
 	     << " to " << username << ": " << errstr;
-
-	username = sent_msg->parsed->to->url->username;
-	thetext = sent_msg->get_text();
 
 	errmsg << "Can't send your SMS to " << username << ": ";
 	if (errstr)
@@ -1721,7 +1756,7 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 	/* http://en.wikipedia.org/wiki/International_Mobile_Subscriber_Identity */
 	size_t len = strlen (tryuser);
         if (len != 15 && len != 14) {
-		LOG(ERR) << "Message does not have a valid IMSI: " << tryuser;
+		LOG(ERR) << "Message does not have a valid IMSI!";
 		/* This is not an IMSI.   Punt.  */
 		return NO_STATE;
 	}
@@ -1777,15 +1812,15 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 bool SMq::to_is_deliverable(const char *to)
 {
 	bool isDeliverable = false;
-
+	
 	isDeliverable = (short_code_map.find(to) != short_code_map.end());
 	if (!isDeliverable) {
 		char *newdest = my_hlr.getIMSI(to);
-		
+	
 		if (newdest
-		    && 0 != strncmp("imsi", newdest, 4)
-		    && 0 != strncmp("IMSI", newdest, 4)) {
-                	free(newdest);
+	 	    && 0 != strncmp("imsi", newdest, 4) 
+	 	    && 0 != strncmp("IMSI", newdest, 4)) {
+			free(newdest);
 			newdest = NULL;
 		}
 
@@ -1836,6 +1871,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 	if (!scheme) { LOG(ERR) << "No scheme"; return NO_STATE; }
 	if (0 != strcmp("sip", scheme)) { LOG(ERR) << "scheme != sip"; return NO_STATE; }
 
+#if 0
 	char *host = qmsg->parsed->req_uri->host;
 	if (!host) { LOG(ERR) << "no host!"; return NO_STATE; }
 	if (0 != strcmp("127.0.0.1", host)
@@ -1845,6 +1881,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 		LOG(ERR) << "host not valid";
 		return NO_STATE;
 	}
+#endif
 
 	char *username = qmsg->parsed->req_uri->username;
 	if (!username) { LOG(ERR) << "No user name"; return NO_STATE; }
@@ -1907,7 +1944,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 					osip_strdup (newfrom);
 			}
 			convert_content_type(qmsg, global_relay_contenttype);
-                        // TODO do cost checks here for out-of-network, probably instead of in smsc shortcode or INITIAL_STATE
+			// TODO do cost checks here for out-of-network, probably instead of in smsc shortcode or INITIAL_STATE
 			return REQUEST_DESTINATION_SIPURL;
 		    }
 		}
@@ -1923,6 +1960,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 		qmsg->parsed_was_changed();
 
 		free(newdest);		// C interface uses free() not delete
+
 		// TODO do cost checks here for in-network, probably instead of in smsc shortcode or INITIAL_STATE
 		return REQUEST_DESTINATION_SIPURL;
 	}
@@ -1932,11 +1970,15 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 	 && username[2] == 's' && username[3] == 'i') {
 		username += 4;
 	}
+	if (username[0] == 'I' && username[1] == 'M'
+	 && username[2] == 'S' && username[3] == 'I') {
+		username += 4;
+	}
 
 	/* http://en.wikipedia.org/wiki/International_Mobile_Subscriber_Identity */
 	size_t len = strlen (username);
         if (len != 15 && len != 14) {
-		LOG(ERR) << "Invalid IMSI";
+		LOG(ERR) << "Invalid IMSI: " << username;
 		/* This is not an IMSI.   Punt.  */
 		return NO_STATE;
 	}
@@ -2249,10 +2291,13 @@ SMq::main_loop()
 	int len;		// MUST be signed -- not size_t!
 				// else we can't see -1 for errors...
 	int timeout, mstimeout;
+	short_msg_p_list *smpl;
+	short_msg_pending *smp;
 	char buffer[5000];
 	short_msg_p_list::iterator qmsg;
 	backup_msg_list::iterator bmsg;
 	time_t now;
+	int errcode;
 
 	stop_main_loop = false;
 
@@ -2268,6 +2313,7 @@ SMq::main_loop()
 	    bmsg++;
 	}
 	delete old_msgs;
+	//TODO - KEEP THESE FROM CAUSING BILLING - kurtis
 
    while (!stop_main_loop) {
 
@@ -2281,6 +2327,12 @@ SMq::main_loop()
 	}
 	mstimeout = 1000 * timeout;
 
+#undef DEBUG_Q
+#ifdef DEBUG_Q
+	LOG(DEBUG) << "=== Top of main_loop: queue:";
+	debug_dump();
+	LOG(DEBUG) << "============== End of queue.  timeout = " << timeout;
+#else
 	char timebuf[26+/*slop*/4];	// 
 	ctime_r(&now, timebuf);
 	timebuf[19] = '\0';	// Leave out space, year and newline
@@ -2296,7 +2348,7 @@ SMq::main_loop()
 		     << sm_state_string(qmsg->state)
 		     << " for " << qmsg->qtag;
 	}
-
+#endif
 	len = my_network.get_next_dgram(buffer, sizeof(buffer), mstimeout);	
 
 	if (len < 0) {
@@ -2307,13 +2359,12 @@ SMq::main_loop()
 		// Timeout.  Just push things along.
 		LOG(DEBUG) << "Timeout...";
 	} else {
-	    handle_datagram(len, buffer, 0);
+		handle_datagram(len, buffer, 0);
 	}
 
 	process_timeout();
     } /* while (!stop_main_loop) */
 }
-
 
 /* Debug dump of SMq and mainly the queue. */
 void SMq::debug_dump() {
@@ -2483,7 +2534,6 @@ SMq::read_queue_from_file(std::string qfile)
 				     << " Response '"
 				     << smp->qtag << "':" << msgtext;
 			}
-			insert_new_message (*smpl, mystate, mytime);
 		} else {
 			LOG(ERR) << "Read bad " << errcode
 			     << " message:" << endl
@@ -2562,6 +2612,20 @@ read_short_msg_pending_from_file(char *fname)
 int
 main(int argc, char **argv)
 {
+	// TODO: Properly parse and handle any arguments
+	if (argc > 1) {
+		for (int argi = 0; argi < argc; argi++) {
+			if (!strcmp(argv[argi], "--version") ||
+			    !strcmp(argv[argi], "-v")) {
+				cout << gVersionString << endl;
+			}
+			if (!strcmp(argv[argi], "--gensql")) {
+				cout << gConfig.getDefaultSQL(string(argv[0]), gVersionString) << endl;
+			}
+		}
+
+		return 0;
+	}
 
   bool please_re_exec = false;
   // short_msg_p_list aq;
@@ -2586,6 +2650,7 @@ main(int argc, char **argv)
    LOG(ALERT) << "smqueue (re)starting";
    cout << "smqueue logs to syslogd facility LOCAL7, so there's not much to see here" << endl;
 
+
    if (gConfig.defines("SIP.Timeout.MessageResend")) {
       timeouts_REQUEST_MSG_DELIVERY[REQUEST_DESTINATION_SIPURL] = gConfig.getNum("SIP.Timeout.MessageResend");
    }
@@ -2609,10 +2674,11 @@ main(int argc, char **argv)
 
     // IP address:port of the global relay where we sent SIP messages
     // if we don't know where else to send them.
-    if (gConfig.defines("SIP.GlobalRelay.IP")) {
-        smq.set_global_relay(gConfig.getStr("SIP.GlobalRelay.IP").c_str(), 
-                             gConfig.getStr("SIP.GlobalRelay.Port").c_str(),
-                             gConfig.getStr("SIP.GlobalRelay.ContentType").c_str());
+    string grIP = gConfig.getStr("SIP.GlobalRelay.IP");
+    string grPort = gConfig.getStr("SIP.GlobalRelay.Port");
+    string grContentType = gConfig.getStr("SIP.GlobalRelay.ContentType");
+    if (grIP.length() && grPort.length() && grContentType.length()) {
+        smq.set_global_relay(grIP.c_str(), grPort.c_str(), grContentType.c_str());
     } else {
         smq.set_global_relay("", "", "");
     }
@@ -2625,8 +2691,7 @@ main(int argc, char **argv)
     smq.init_listener(gConfig.getStr("SIP.myPort").c_str());	// Port number to listen on.
 
     // Debug -- print all msgs in log
-  //  print_as_we_validate = gConfig.getBool("Debug.print_as_we_validate");
-    print_as_we_validate = gConfig.defines("Debug.print_as_we_validate");
+    print_as_we_validate = gConfig.getBool("Debug.print_as_we_validate");
 
     // system() calls in backgrounded jobs hang if stdin is still open on tty.
     // So, close it.
@@ -2675,4 +2740,625 @@ main(int argc, char **argv)
   if (please_re_exec)
     execvp(argv[0], argv);
   return 0;
+}
+
+ConfigurationKeyMap getConfigurationKeys()
+{
+	ConfigurationKeyMap map;
+	ConfigurationKey *tmp;
+
+	tmp = new ConfigurationKey("Asterisk.address","127.0.0.1:5060",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::IPANDPORT,
+		"",
+		false,
+		"The Asterisk/SIP PBX IP address and port."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("Bounce.Code","101",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[0-9]{3,6}$",
+		false,
+		"The short code that bounced messages originate from."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("Bounce.Message.IMSILookupFailed","Cannot determine return address; bouncing message.  Text your phone number to 101 to register and try again.",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"The bounce message that is sent when the originating IMSI cannot be verified."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("Bounce.Message.NotRegistered","Phone not registered here.",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"Bounce message indicating that the destination phone is not registered."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("CDRFile","/var/lib/OpenBTS/smq.cdr",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::FILEPATH_OPT,// audited
+		"",
+		false,
+		"Log CDRs here.  "
+		"To enable, specify an absolute path to where the CDRs should be logged.  "
+		"To disable, execute \"unconfig CDRFile\"."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("Debug.print_as_we_validate","0",
+		"",
+		ConfigurationKey::DEVELOPER,
+		ConfigurationKey::BOOLEAN,
+		"",
+		false,
+		"Generate lots of output during validation."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("savefile","/tmp/save",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::FILEPATH,
+		"",
+		false,
+		"The file to save SMS messages to when exiting."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Balance.Code","1000",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[0-9]{3,6}$",
+		false,
+		"Short code to the application which tells the sender their current account balance."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	// TODO : set to "" impossible, no way yet to make this optional as originally defined in sql example
+	// TODO : safety check on .defines() vs .length()
+	tmp = new ConfigurationKey("SC.Balance.String","Your account balance is %d",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"Balance message string."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.DebugDump.Code","2336",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[0-9]{3,6}$",
+		false,
+		"Short code to the application which dumps debug information to the log.  Intended for administrator use."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Info.Code","411",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[0-9]{3,6}$",
+		false,
+		"Short code to the application which tells the sender their own number and registration status."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.QuickChk.Code","2337",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[0-9]{3,6}$",
+		false,
+		"Short code to the application which tells the sender the how many messages are currently queued.  Intended for administrator use."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Code","101",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[0-9]{3,6}$",
+		false,
+		"Short code to the application which registers the sender to the system."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Digits.Max","10",
+		"digits",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::VALRANGE,
+		"7:10",// educated guess
+		false,
+		"The maximum number of digits a phone number can have."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Digits.Min","7",
+		"digits",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::VALRANGE,
+		"7:10",// educated guess
+		false,
+		"The minimum number of digits a phone number must have."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Digits.Override","0",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::BOOLEAN,
+		"",
+		false,
+		"Ignore phone number digit length checks."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Msg.AlreadyA","Your phone is already registered as",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"First part of message sent during registration if the handset is already registered, followed by the current handset number."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Msg.AlreadyB",".",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"Second part of message sent during registration if the handset is already registered."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Msg.ErrorA","Error in assigning",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"First part of message sent during registration if the handset fails to register, followed by the attempted handset number."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Msg.ErrorB","to IMSI",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"Second part of message sent during registration if the handset fails to register, followed by the handset IMSI."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Msg.TakenA","The phone number",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"First part of message sent during registration if the handset fails to register because the desired number is already taken, followed by the attempted handset number."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Msg.TakenB","is already in use. Try another, then call that one to talk to whoever took yours.",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"Second part of message sent during registration if the handset fails to register because the desired number is already taken."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Msg.WelcomeA","Hello",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"First part of message sent during registration if the handset registers successfully, followed by the assigned handset number."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.Register.Msg.WelcomeB","! Text to 411 for system status.",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"Second part of message sent during registration if the handset registers successfully."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.SMSC.Code","smsc",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[a-zA-Z]+$",
+		false,
+		"The SMSC entry point. There is where OpenBTS sends SIP MESSAGES to."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.SMSC.Code","smsc",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[a-zA-Z]+$",
+		false,
+		"The SMSC entry point. There is where OpenBTS sends SIP MESSAGES to."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	// TODO : this should be made optional and default to off
+	// TODO : safety check on .defines() vs .length()
+	tmp = new ConfigurationKey("SC.WhiplashQuit.Code","314158",
+		"",
+		ConfigurationKey::DEVELOPER,
+		ConfigurationKey::STRING,
+		"^[0-9]{3,6}$",
+		false,
+		"Short code to the application which will make the server quit for valgrind leak checking.  Intended for developer use only."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.WhiplashQuit.Password","Snidely",
+		"",
+		ConfigurationKey::DEVELOPER,
+		ConfigurationKey::STRING,
+		"^[a-zA-Z0-9]+$",
+		false,
+		"Password which must be sent in the message to the application at SC.WhiplashQuit.Code."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.WhiplashQuit.SaveFile","testsave.txt",
+		"",
+		ConfigurationKey::DEVELOPER,
+		ConfigurationKey::FILEPATH,
+		"",
+		false,
+		"Contents of the queue will be dumped to this file when SC.WhiplashQuit.Code is activated."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.ZapQueued.Code","2338",
+		"",
+		ConfigurationKey::DEVELOPER,
+		ConfigurationKey::STRING,
+		"^[0-9]{3,6}$",
+		false,
+		"Short code to the application which will remove a message from the queue, by its tag.  "
+			"If first char is \"-\", do not reply, just do it.  "
+			"If argument is SC.ZapQueued.Password, then delete any queued message with timeout greater than 5000 seconds."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SC.ZapQueued.Password","6000",
+		"",
+		ConfigurationKey::DEVELOPER,
+		ConfigurationKey::STRING,
+		"^[a-zA-Z0-9]+$",
+		false,
+		"Password which must be sent in the message to the application at SC.ZapQueued.Code."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("ServiceType.Local","in-network-SMS",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"Rate service name for in-network SMS messages."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("ServiceType.Networked","out-of-network-SMS",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"Rate service name for out-of-network SMS messages."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.Default.BTSPort","5062",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::PORT,
+		"",
+		false,
+		"The default BTS port to try when none is available."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.GlobalRelay.ContentType","application/vnd.3gpp.sms",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::CHOICE,
+		"application/vnd.3gpp.sms,"
+			"text/plain",
+		true,
+		"The content type that the global relay expects."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.GlobalRelay.IP","",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::IPADDRESS_OPT,// audited
+		"",
+		true,
+		"IP address of global relay to send unresolvable messages to.  "
+			"By default, this is disabled.  "
+			"To override, specify an IP address.  "
+			"To disable again use \"unconfig SIP.GlobalRelay.IP\"."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.GlobalRelay.Port","",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::PORT_OPT,// audited
+		"",
+		true,
+		"Port of global relay to send unresolvable messages to."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.GlobalRelay.RelaxedVerify","0",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::BOOLEAN,
+		"",
+		true,
+		"Relax relay verification by only using SIP Header."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.Timeout.ACKedMessageResend","60",
+		"seconds",
+		ConfigurationKey::CUSTOMERTUNE,
+		ConfigurationKey::VALRANGE,
+		"45:360",// educated guess
+		false,
+		"Number of seconds to delay resending ACK messages."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.Timeout.MessageBounce","120",
+		"seconds",
+		ConfigurationKey::CUSTOMERTUNE,
+		ConfigurationKey::VALRANGE,
+		"45:360",// educated guess
+		true,
+		"Timeout, in seconds, between bounced message sending tries."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.Timeout.MessageResend","120",
+		"seconds",
+		ConfigurationKey::CUSTOMERTUNE,
+		ConfigurationKey::VALRANGE,
+		"45:360",// educated guess
+		true,
+		"Timeout, in seconds, between message sending tries."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.myIP","127.0.0.1",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::IPADDRESS,
+		"",
+		false,
+		"The internal IP address. Usually 127.0.0.1."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.myIP2","192.168.0.100",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::IPADDRESS,
+		"",
+		false,
+		"The external IP address that is communciated to the SIP endpoints."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.myPort","5063",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::PORT,
+		"",
+		false,
+		"The port that smqueue should bind to."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SMS.FakeSrcSMSC","0000",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[0-9]{3,6}$",
+		false,
+		"Use this to fill in L4 SMSC address in SMS delivery."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SMS.HTTPGateway.Retries","5",
+		"retries",
+		ConfigurationKey::CUSTOMERTUNE,
+		ConfigurationKey::VALRANGE,
+		"2:8",// educated guess
+		false,
+		"Maximum retries for HTTP gateway attempt."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SMS.HTTPGateway.Timeout","5",
+		"seconds",
+		ConfigurationKey::CUSTOMERTUNE,
+		ConfigurationKey::VALRANGE,
+		"2:8",// educated guess
+		false,
+		"Timeout for HTTP gateway attempt in seconds."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SMS.HTTPGateway.URL","",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::STRING_OPT,// audited
+		"^(http|https)://[[:alnum:]_.-]",
+		false,
+		"URL for HTTP API.  "
+			"Used directly as a C format string with two \"%s\" substitutions.  "
+			"First \"%s\" gets replaced with the destination number.  "
+			"Second \"%s\" gets replaced with the URL-endcoded message body."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	// TODO : pretty sure this isn't used anywhere...
+	tmp = new ConfigurationKey("SubscriberRegistry.A3A8","../comp128",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::FILEPATH,
+		"",
+		false,
+		"Path to the program that implements the A3/A8 algorithm."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SubscriberRegistry.db","/var/lib/asterisk/sqlite3dir/sqlite3.db",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::FILEPATH,
+		"",
+		false,
+		"The location of the sqlite3 database holding the subscriber registry."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SubscriberRegistry.Manager.Title","Subscriber Registry",
+		"",
+		ConfigurationKey::CUSTOMER,
+		ConfigurationKey::STRING,
+		"^[[:print:]]+$",
+		false,
+		"Title text to be displayed on the subscriber registry manager."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SubscriberRegistry.Manager.VisibleColumns","name username type context host",
+		"",
+		ConfigurationKey::CUSTOMERTUNE,
+		ConfigurationKey::STRING,
+		"^(name){0,1} (username){0,1} (type){0,1} (context){0,1} (host){0,1}$",
+		false,
+		"A space separated list of columns to display in the subscriber registry manager."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SubscriberRegistry.Port","5064",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::PORT,
+		"",
+		false,
+		"Port used by the SIP Authentication Server. NOTE: In some older releases (pre-2.8.1) this is called SIP.myPort."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SubscriberRegistry.UpstreamServer","",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::STRING_OPT,// audited
+		"",
+		false,
+		"URL of the subscriber registry HTTP interface on the upstream server.  "
+			"By default, this feature is disabled.  "
+			"To enable, specify a server URL eg: http://localhost/cgi/subreg.cgi.  "
+			"To disable again, execute \"unconfig SubscriberRegistry.UpstreamServer\"."
+			);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	return map;
 }
