@@ -7,7 +7,7 @@ Build-Depends: build-essential, debhelper (>= 7), libosip2-dev, pkg-config, auto
 Standards-Version: 3.7.3
 
 Package: smqueue-public
-Version: C3.1TRUNK
+Version: P3.1TRUNK
 Section: comm
 Priority: optional
 Architecture: i386
