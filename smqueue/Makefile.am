@@ -60,6 +60,7 @@ smqueue_LDADD = \
 install: smqueue
 	mkdir -p "$(DESTDIR)/OpenBTS/"
 	install smqueue "$(DESTDIR)/OpenBTS/"
+	install runloop.smqueue.sh "$(DESTDIR)/OpenBTS/"
 	mkdir -p "$(DESTDIR)/etc/OpenBTS/"
 	install smqueue.example.sql "$(DESTDIR)/etc/OpenBTS/"
 
