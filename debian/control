@@ -1,5 +1,4 @@
 Source: smqueue-public
-Provides: smqueue
 Section: comm
 Priority: optional
 Maintainer: Range Networks, Inc. <info@rangenetworks.com>
@@ -8,12 +7,11 @@ Build-Depends: build-essential, debhelper (>= 7), libosip2-dev, pkg-config, auto
 Standards-Version: 3.7.3
 
 Package: smqueue-public
-Provides: smqueue
-Version: TRUNK
+Version: C3.1TRUNK
 Section: comm
 Priority: optional
-Architecture: any
+Architecture: i386
 Essential: no
-Depends: sqlite, sqlite3 (>= 3.7), libosip2-4, libglib2.0-0, libgl1-mesa-glx, libc6, libasound2, pkg-config, libpcre3, gawk, screen
+Depends: sqlite, sqlite3, libosip2-4, libglib2.0-0, libgl1-mesa-glx, libc6-i686, libasound2, pkg-config, libpcre3, gawk, screen
 Description: OpenBTS Public software.
 

@@ -26,8 +26,7 @@ AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
 AM_CXXFLAGS = -O3 -g -lpthread
 
 EXTRA_DIST = \
-	README.smqueue \
-	smqueue.config.example
+	README.smqueue
 
 noinst_PROGRAMS = \
 	smqueue
@@ -36,16 +35,14 @@ noinst_HEADERS = \
 	poll.h \
 	smnet.h \
 	smqueue.h \
-	smsc.h \
-	diskbackup.h
+	smsc.h
 
 smqueue_SOURCES = \
 	poll.c \
 	smcommands.cpp \
 	smnet.cpp \
 	smqueue.cpp \
-	smsc.cpp \
-	diskbackup.cpp
+	smsc.cpp
 
 smqueue_LDADD = \
 	$(GLOBALS_LA) \

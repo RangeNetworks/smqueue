@@ -36,7 +36,6 @@
 #include "smnet.h"			// My network support
 #include <SubscriberRegistry.h>			// My home location register
 #include <Logger.h>
-#include "diskbackup.h"
 
 // That's awful OSIP has a CR define.
 // It clashes with our innocent L2Address::CR().
@@ -151,8 +150,6 @@ class short_msg {
 
 	bool from_relay;
 
-	long long timestamp; //timestamp for backup id'ing
-
 	short_msg () :
 		text_length (0),
 		text (NULL),
@@ -165,8 +162,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
-		from_relay(false),
-		timestamp(get_msecs())
+		from_relay(false)
 	{
 	}
 	// Make a short message, perhaps taking responsibility for deleting
@@ -183,8 +179,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
-		from_relay(false),
-		timestamp(get_msecs())
+		from_relay(false)
 	{
 		if (!use_my_memory) {
 			text = new char [text_length+1];
@@ -211,8 +206,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
-		from_relay(sm.from_relay),
-		timestamp(get_msecs())
+		from_relay(sm.from_relay)
 	{
 		if (text_length) {
 			text = new char [text_length+1];
@@ -233,8 +227,7 @@ class short_msg {
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
-		need_repack(false),
-		timestamp(get_msecs())
+		need_repack(false)
 	{
 		text = new char [text_length+1];
 		strncpy(text, str.data(), text_length);
@@ -788,8 +781,6 @@ class SMq {
 	   messages and looking up their return and destination addresses.  */
 	SubscriberRegistry my_hlr;
 
-	SQLiteBackup my_backup;
-
 	/* Where to send SMS's that we can't route locally. */
 	std::string global_relay;
 	std::string global_relay_port;
@@ -835,7 +826,6 @@ class SMq {
 		reexec_smqueue (false)
 	{
 		my_hlr.init();
-		my_backup.init();
 	}
 
 	// Override operator= so -Weffc++ doesn't complain
@@ -895,11 +885,6 @@ class SMq {
 
 	/* Convert a short_msg to a given content type */
 	//void convert_message(short_msg_pending *qmsg, short_msg::ContentType toType);
-
-	/* handle an incoming datagram */
-	/* timestamp is used if you want to set the timestamp for an incoming message
-	   0 will cause a new timestamp to be generated */
-	void handle_datagram(int len, char* buffer, long long timestamp, bool insert=true);
 
 	// Main loop listening for dgrams and processing them.
 	void main_loop();
@@ -1017,22 +1002,24 @@ class SMq {
 	// new messages as a 1-entry short_msg_p_list and then move
 	// them to the real list.  Note that this moves the message's list
 	// entry itself off the original list (which can then be discarded).
-	// This version lets the state and timeout be set.
-	void insert_new_message(short_msg_p_list &smp, enum sm_state s, 
-				time_t t, bool insert = true) {
-		if (insert && !my_backup.insert(smp.begin()->timestamp, smp.begin()->text)){
-			LOG(INFO) << "Unable to backup message: " << time_sorted_list.begin()->timestamp;
-		}
+	void insert_new_message(short_msg_p_list &smp) {
 		time_sorted_list.splice (time_sorted_list.begin(), smp);
-		time_sorted_list.begin()->set_state (s, t);
+		time_sorted_list.begin()->set_state (INITIAL_STATE);
+		// time_sorted_list.begin()->timeout = 0;  // it is already
+		// Low timeout will cause this msg to be at front of queue.
 	}
 	// This version lets the initial state be set.
-	void insert_new_message(short_msg_p_list &smp, enum sm_state s, bool insert=true) {
-		insert_new_message(smp, s, 0, insert);
+	void insert_new_message(short_msg_p_list &smp, enum sm_state s) {
+		time_sorted_list.splice (time_sorted_list.begin(), smp);
+		time_sorted_list.begin()->set_state (s);
+		// time_sorted_list.begin()->timeout = 0;  // it is already
+		// Low timeout will cause this msg to be at front of queue.
 	}
-	//Basic version
-	void insert_new_message(short_msg_p_list &smp, bool insert=true) {
-		insert_new_message(smp, INITIAL_STATE, insert);
+	// This version lets the state and timeout be set.
+	void insert_new_message(short_msg_p_list &smp, enum sm_state s, 
+			time_t t) {
+		time_sorted_list.splice (time_sorted_list.begin(), smp);
+		time_sorted_list.begin()->set_state (s, t);
 	}
 
 	/* Debug dump of the queue and the SMq class in general. */

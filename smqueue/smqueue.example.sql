@@ -6,13 +6,14 @@
 -- rather in the program's ConfigurationKey schema.
 --
 PRAGMA foreign_keys=OFF;
+PRAGMA journal_mode=WAL;
 BEGIN TRANSACTION;
 CREATE TABLE IF NOT EXISTS CONFIG ( KEYSTRING TEXT UNIQUE NOT NULL, VALUESTRING TEXT, STATIC INTEGER DEFAULT 0, OPTIONAL INTEGER DEFAULT 0, COMMENTS TEXT DEFAULT '');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Asterisk.address','127.0.0.1:5060',0,0,'The Asterisk/SIP PBX IP address and port.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Bounce.Code','101',0,0,'The short code that bounced messages originate from.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Bounce.Message.IMSILookupFailed','Cannot determine return address; bouncing message.  Text your phone number to 101 to register and try again.',0,0,'The bounce message that is sent when the originating IMSI cannot be verified.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Bounce.Message.NotRegistered','Phone not registered here.',0,0,'Bounce message indicating that the destination phone is not registered.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('CDRFile','/var/lib/smq.cdr',0,0,'Log CDRs here.  To enable, specify an absolute path to where the CDRs should be logged.  To disable, execute "unconfig CDRFile".');
+INSERT OR IGNORE INTO "CONFIG" VALUES('CDRFile','/var/lib/OpenBTS/smq.cdr',0,0,'Log CDRs here.  To enable, specify an absolute path to where the CDRs should be logged.  To disable, execute "unconfig CDRFile".');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Control.NumSQLTries','3',0,0,'Number of times to retry SQL queries before declaring a database access failure.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Debug.print_as_we_validate','0',0,0,'1=enabled, 0=disabled - Generate lots of output during validation.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Log.Alarms.Max','20',0,0,'Maximum number of alarms to remember inside the application.');
@@ -24,8 +25,8 @@ INSERT OR IGNORE INTO "CONFIG" VALUES('SC.DebugDump.Code','2336',0,0,'Short code
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Info.Code','411',0,0,'Short code to the application which tells the sender their own number and registration status.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.QuickChk.Code','2337',0,0,'Short code to the application which tells the sender the how many messages are currently queued.  Intended for administrator use.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Code','101',0,0,'Short code to the application which registers the sender to the system.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Max','12',0,0,'The maximum number of digits a phone number can have.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Min','4',0,0,'The minimum number of digits a phone number must have.');
+INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Max','10',0,0,'The maximum number of digits a phone number can have.');
+INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Min','7',0,0,'The minimum number of digits a phone number must have.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Override','0',0,0,'1=enabled, 0=disabled - Ignore phone number digit length checks.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Msg.AlreadyA','Your phone is already registered as',0,0,'First part of message sent during registration if the handset is already registered, followed by the current handset number.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Msg.AlreadyB','.',0,0,'Second part of message sent during registration if the handset is already registered.');
@@ -65,7 +66,6 @@ INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.Port','5064',0,0,'Port
 INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.UpstreamServer','',0,0,'URL of the subscriber registry HTTP interface on the upstream server.  By default, this feature is disabled.  To enable, specify a server URL eg: http://localhost/cgi/subreg.cgi.  To disable again, execute "unconfig SubscriberRegistry.UpstreamServer".');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.db','/var/lib/asterisk/sqlite3dir/sqlite3.db',0,0,'The location of the sqlite3 database holding the subscriber registry.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('savefile','/tmp/save',0,0,'The file to save SMS messages to when exiting.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('Backup.db', '/tmp/smq.backup.db',0,0,'The backup database for SMQ messages');
 COMMIT;
 
 
