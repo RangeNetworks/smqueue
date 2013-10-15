@@ -1859,6 +1859,7 @@ SMq::convert_content_type(short_msg_pending *message, short_msg::ContentType to_
 		message->convert_message(to_type);
 	}*/
 	message->convert_message(to_type);
+	return true;
 }
 
 /* Change the Request-URI's address to a valid IMSI.  */
