@@ -16,7 +16,6 @@ set -e
 # for details, see http://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-
 APP=smqueue
 
 remove()
@@ -31,7 +30,7 @@ remove()
 case "$1" in
     remove|upgrade|deconfigure)
         remove
->>>>>>> smqueue build dependencies
+
     ;;
 
     failed-upgrade)
