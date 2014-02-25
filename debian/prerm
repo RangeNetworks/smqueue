@@ -16,11 +16,22 @@ set -e
 # for details, see http://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
+
+APP=smqueue
+
+remove()
+{
+    if [ "$(pidof $APP)" ]; then
+	killall $APP
+    else
+	echo "$APP not running"
+    fi
+}
+
 case "$1" in
     remove|upgrade|deconfigure)
-		set +e
-		stop smqueue
-		set -e
+        remove
+>>>>>>> smqueue build dependencies
     ;;
 
     failed-upgrade)
