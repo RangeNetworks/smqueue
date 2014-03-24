@@ -1,5 +1,5 @@
 /*
-* Copyright 2008, 2009, 2010 Free Software Foundation, Inc.
+* Copyright 2008, 2009, 2010, 2014 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
@@ -589,7 +589,7 @@ void TLUserData::parse(const TLFrame& src, size_t& rp)
 	mLength = src.readField(rp,8);
 #if 1
 	// This tail() works because UD is always the last field in the PDU.
-	mRawData.clone(src.tail(rp));
+	mRawData.clone(src.alias().tail(rp));
 	// Should we do this here?
 	mRawData.LSB8MSB();
 #else

@@ -30,11 +30,11 @@ SUBDIRS = \
 	sqlite3 \
 	CommonLibs \
 	Globals \
-	SR \
 	GSM \
 	SMS \
 	doc \
 	tools \
+	NodeManager \
 	smqueue \
 	testing
 

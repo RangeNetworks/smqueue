@@ -1,5 +1,5 @@
 /*
-* Copyright 2012-2013 Range Networks, Inc.
+* Copyright 2012-2014 Range Networks, Inc.
 *
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
@@ -28,6 +28,10 @@
 #include <stdlib.h>
 
 #include <Sockets.h>
+
+// (pat 8-9-2013) Unfortunately we need a default config to eliminate link errors.
+#include <Configuration.h>
+ConfigurationTable gConfig("/etc/OpenBTS/smqueue.db","smrelaytest");
 
 /** Submit an SMS for delivery.
  *  @return The server return code.

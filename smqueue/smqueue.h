@@ -2,7 +2,7 @@
  * SMqueue.h - In-memory queue manager for Short Messages (SMS's) for OpenBTS.
  * Written by John Gilmore, July 2009.
  *
- * Copyright 2009 Free Software Foundation, Inc.
+ * Copyright 2009, 2014 Free Software Foundation, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,9 +19,11 @@
  * See the COPYING file in the main directory for details.
  */
 
+
 #ifndef SM_QUEUE_H
 #define SM_QUEUE_H
 
+#include "SmqGlobals.h"
 #include <time.h>
 //#include <osipparser2/osip_message.h>	/* from osipparser2 */
 #include <stdlib.h>			/* for osipparser2 */
@@ -35,8 +37,9 @@
 
 #include "smnet.h"			// My network support
 #include <SubscriberRegistry.h>			// My home location register
+
 #include <Logger.h>
-#include "diskbackup.h"
+void ProcessReceivedMsg();
 
 // That's awful OSIP has a CR define.
 // It clashes with our innocent L2Address::CR().
@@ -74,19 +77,19 @@ enum sm_state {				// timeout, next-state-if-timeout
 	NO_STATE,
 	INITIAL_STATE,
 	REQUEST_FROM_ADDRESS_LOOKUP,
-	ASKED_FOR_FROM_ADDRESS_LOOKUP,
+	ASKED_FOR_FROM_ADDRESS_LOOKUP,  //3
 
 	AWAITING_TRY_DESTINATION_IMSI,
-	REQUEST_DESTINATION_IMSI,
+	REQUEST_DESTINATION_IMSI, // 5
 	ASKED_FOR_DESTINATION_IMSI,
 
 	AWAITING_TRY_DESTINATION_SIPURL,
-	REQUEST_DESTINATION_SIPURL,
+	REQUEST_DESTINATION_SIPURL,  // 8
 	ASKED_FOR_DESTINATION_SIPURL,
 
-	AWAITING_TRY_MSG_DELIVERY,
-	REQUEST_MSG_DELIVERY,
-	ASKED_FOR_MSG_DELIVERY,
+	AWAITING_TRY_MSG_DELIVERY, // 10
+	REQUEST_MSG_DELIVERY,  // 11
+	ASKED_FOR_MSG_DELIVERY, // 12
 
 	DELETE_ME_STATE,
 
@@ -106,6 +109,7 @@ std::string sm_state_name(enum sm_state astate);
 /* Set this once we've called the initializer for the OSIP parser library. */
 extern bool osip_initialized;
 extern struct osip *osipptr;
+
 
 /* In-memory object representing a Short Message.  These are kept as
    text strings (as we received them) and only parsed when we need to
@@ -151,8 +155,6 @@ class short_msg {
 
 	bool from_relay;
 
-	long long timestamp; //timestamp for backup id'ing
-
 	short_msg () :
 		text_length (0),
 		text (NULL),
@@ -165,8 +167,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
-		from_relay(false),
-		timestamp(get_msecs())
+		from_relay(false)
 	{
 	}
 	// Make a short message, perhaps taking responsibility for deleting
@@ -183,8 +184,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
-		from_relay(false),
-		timestamp(get_msecs())
+		from_relay(false)
 	{
 		if (!use_my_memory) {
 			text = new char [text_length+1];
@@ -211,8 +211,7 @@ class short_msg {
 		tl_message(NULL),
 		ms_to_sc(false),
 		need_repack(true),
-		from_relay(sm.from_relay),
-		timestamp(get_msecs())
+		from_relay(sm.from_relay)
 	{
 		if (text_length) {
 			text = new char [text_length+1];
@@ -233,8 +232,7 @@ class short_msg {
 		rp_data(NULL),
 		tl_message(NULL),
 		ms_to_sc(false),
-		need_repack(false),
-		timestamp(get_msecs())
+		need_repack(false)
 	{
 		text = new char [text_length+1];
 		strncpy(text, str.data(), text_length);
@@ -255,7 +253,7 @@ class short_msg {
 		delete [] text;
 		delete rp_data;
 		delete tl_message;
-	};
+	}
 
 	// Pseudo-constructor due to inability to run constructors on
 	// members of lists.
@@ -335,7 +333,7 @@ class short_msg {
 		}
 
 		return true;
-	}
+	} // parse
 
 	/* Anytime a caller CHANGES the values in the parsed tree of the
 	   message, they MUST call this, to let the caching system
@@ -398,7 +396,7 @@ class short_msg {
 		parsed = NULL;
 		parsed_is_valid = false;
 		parsed_is_better = false;
-	}
+	} //unparse
 
 	std::string get_text() const
 	{
@@ -452,13 +450,16 @@ class short_msg {
 		case UNSUPPORTED_CONTENT:
 		default:
 			return "";
-		}
-	}
+		} // switch
+	} // get_text
+
 
 	/* Kind of a nasty hack to convert a message as it is going out. Generally from rpdu to text. */
 	void convert_message(ContentType to) {
 		convert_content_type = to;
 	}
+
+
 	void do_not_convert_message() {
 		convert_content_type = UNSUPPORTED_CONTENT;
 	}
@@ -473,14 +474,13 @@ class short_msg {
 extern /*static*/ int (*timeouts[STATE_MAX_PLUS_ONE])[STATE_MAX_PLUS_ONE];
 
 class SMq;
+
 class short_msg_pending: public short_msg {
 	public:
 	enum sm_state state;		// State of processing
 	time_t next_action_time;	// When to do something different
 	int retries;			// How many times we've retried
 					// this message.
-	int cost;			// cost of delivering this message, -1 until defined
-	string service;			// service cost name
 	char srcaddr[16];		// Source address (ipv4 or 6 or ...)
 	socklen_t srcaddrlen;		// Valid length of src address.
 	char *qtag;			// Tag that identifies this msg
@@ -505,8 +505,6 @@ class short_msg_pending: public short_msg {
 		state (NO_STATE),
 		next_action_time (0),
 		retries (0),
-		cost(-1),
-		service(""),
 		// srcaddr({0}),  // can't seem to initialize an array?
 		srcaddrlen(0),
 		qtag (NULL),
@@ -522,8 +520,6 @@ class short_msg_pending: public short_msg {
 		state (NO_STATE),
 		next_action_time (0),
 		retries (0),
-		cost(-1),
-		service(""),
 		// srcaddr({0}),  // can't seem to initialize an array?
 		srcaddrlen(0),
 		qtag (NULL),
@@ -538,7 +534,6 @@ class short_msg_pending: public short_msg {
 		state (NO_STATE),
 		next_action_time (0),
 		retries (0),
-		cost(-1),
 		// srcaddr({0}),  // can't seem to initialize an array?
 		srcaddrlen(0),
 		qtag (NULL),
@@ -560,8 +555,6 @@ class short_msg_pending: public short_msg {
 		state (smp.state),
 		next_action_time (smp.next_action_time),
 		retries (smp.retries),
-		cost(smp.cost),
-		service(smp.service),
 		// srcaddr({0}),  // can't seem to initialize an array?
 		srcaddrlen(smp.srcaddrlen),
 		qtag (NULL),
@@ -638,18 +631,27 @@ class short_msg_pending: public short_msg {
 	}
 #endif
 
-	/* Optimize this later so we don't make so many kernel calls. */
-	time_t gettime () { return time(NULL); };
+
+	time_t msgettime() {
+		struct timespec tv;
+		clock_gettime(CLOCK_REALTIME, &tv);
+		unsigned long time_in_mill =
+			 (tv.tv_sec * 1000UL) + (tv.tv_nsec / 1000000UL) ; // convert tv_sec & tv_usec to millisecond
+		return time_in_mill;
+	}
+
 
 	/* Reset the message's state and timeout.  Timeout is set based
 	   on the current state and the new state.  */
 	void set_state(enum sm_state newstate) {
-		next_action_time = gettime() +
+		next_action_time = msgettime() +
 			(*SMqueue::timeouts[state])[newstate];
+		LOG(DEBUG) << "Set state orig " << state << " Newstate " << newstate
+				<< " Timeout value " << *SMqueue::timeouts[state][newstate];
 		state = newstate;
 		/* If we're in a queue, some code in another class is now going
 		   to have to change our queue position.  */
-	};
+	}
 
 	/* Reset the message's state and timeout.  Timeout is argument.  */
 	void set_state(enum sm_state newstate, time_t timeout) {
@@ -657,7 +659,7 @@ class short_msg_pending: public short_msg {
 		state = newstate;
 		/* If we're in a queue, some code in another class is now going
 		   to have to change our queue position.  */
-	};
+	}
 
 	/* Check that the message is valid, and set the qtag and qtaghash
 	   from the message's contents.   Result is 0 for valid, or
@@ -679,21 +681,6 @@ class short_msg_pending: public short_msg {
 	/* Check host and port for validity.  */
 	bool
 	check_host_port(char *host, char *port);
-
-	/* Check to see if it is an in-network destination. */
-	bool local_destination(SubscriberRegistry& hlr) const;
-
-	/* Check to see if it is from a local user, as opposed to from the gateway. */
-	bool local_source(SubscriberRegistry& hlr) const;
-
-	/* Calculate the cost of delivering this message and set the cost field. */
-	int set_delivery_cost(SubscriberRegistry& hlr);
-
-	/* Check to see if the user has enough credit to send the message. Also sets the cost field. */
-	bool sufficient_credit(SubscriberRegistry& hlr) const;
-
-	/* Debit the account when a message is verified as delivered. */
-	void debit_account(SubscriberRegistry& hlr) const;
 
 	/* Generate a billing record. */
 	void write_cdr(SubscriberRegistry& hlr) const;
@@ -761,10 +748,10 @@ typedef enum short_code_action (*short_func_t)
  * Associative map between target phone numbers (short codes) and
  * function pointers that implement those numbers.
  */
-typedef std::map<std::string,short_func_t> short_code_map_t;
+typedef std::map<std::string,short_func_t> short_code_map_t;  // Maps description (phone number) to function to call
 
 /* What fills in that map */
-void init_smcommands (short_code_map_t *scm);
+void init_smcommands(short_code_map_t *scm);
 
 /* 
  * Main class for SIP Short Message processing.
@@ -773,10 +760,36 @@ void init_smcommands (short_code_map_t *scm);
 class SMq {
 	public:
 
+	// Put all timeouts in one place
+	const static int TIMEOUTMS = 5000;
+	const static int SMSRATELIMITMS = 1000;
+	const static int LONGDELETMS = 5000000;   // 83 minutes  Used by SC.ZapQueued.Password
+	const static int INCREASEACKEDMSGTMOMS = 60000;  // 5 minutes
+
+	void InitBeforeMainLoop();
+	void CleaupAfterMainreaderLoop();
+	void InitInsideReaderLoop();
+
 	/* A list of all messages we know about, sorted by time of next
 	   action (assuming nothing arrives to change our mind before that
 	   time). */
 	short_msg_p_list time_sorted_list;
+
+	std::string savefile; //SMq
+	bool please_re_exec;
+
+	pthread_mutexattr_t mutexSLAttr;
+	pthread_mutex_t sortedListMutex;
+
+	void unlockSortedList() {
+		// LOG(DEBUG) << "UNLOCK";  // debug opnly
+		pthread_mutex_unlock(&sortedListMutex);
+	}
+
+	void lockSortedList() {
+		// LOG(DEBUG) << "LOCK"; // debug only
+		pthread_mutex_lock(&sortedListMutex);
+	}
 
 	/* We may later want other accessors for faster access to various
 	   messages when things DO arrive.  For now, linear search!  */
@@ -787,8 +800,6 @@ class SMq {
 	/* The interface to the Host Location Register for routing
 	   messages and looking up their return and destination addresses.  */
 	SubscriberRegistry my_hlr;
-
-	SQLiteBackup my_backup;
 
 	/* Where to send SMS's that we can't route locally. */
 	std::string global_relay;
@@ -814,9 +825,14 @@ class SMq {
 
 	/* Set this to true when you want main loop to stop.  */
 	bool stop_main_loop;
+
 	/* Set this to true when you want the program to re-exec itself
 	   instead of terminating after the main loop stops.  */
 	bool reexec_smqueue;
+
+	// Input from command line
+	int argc;
+	char **argv;
 
 	/* Constructor */
 	SMq () : 
@@ -834,17 +850,30 @@ class SMq {
 		stop_main_loop (false),
 		reexec_smqueue (false)
 	{
+		// We need recursive attribute set
+		int mStatus;
+		mStatus = pthread_mutexattr_init(&mutexSLAttr);
+		if (mStatus != 0) { LOG(DEBUG) << "Mutex pthread_mutexattr_init error " << mStatus; }
+		pthread_mutexattr_settype(&mutexSLAttr, PTHREAD_MUTEX_RECURSIVE);
+		if (mStatus != 0) { LOG(DEBUG) << "Mutex pthread_mutexattr_settype error " << mStatus; }
+		pthread_mutex_init(&sortedListMutex, &mutexSLAttr);
+		if (mStatus != 0) { LOG(DEBUG) << "Mutex pthread_mutex_init error " << mStatus; }
+
 		my_hlr.init();
-		my_backup.init();
 	}
+
+
+	/* Destructor */
+	~SMq() {
+		pthread_mutex_destroy(&sortedListMutex);
+	}
+
 
 	// Override operator= so -Weffc++ doesn't complain
 	// *DISABLE* assignments by making the = operation private.
 	private:
 	SMq & operator= (const SMq &rvalue);
 	public:
-
-	/* Destructor */
 
 	/* Set my own IP address, since I can't tell how I look to others. */
 	void set_my_ipaddress(std::string myip) {
@@ -858,7 +887,7 @@ class SMq {
 	void set_my_2nd_ipaddress(std::string myip) {
 		my_2nd_ipaddress = myip;
 		// Point to it for message validity checking.
-		// NOTE: that copy shares same storage as this one.
+		// NOTE: that copy shares same storage as this one.LOG(DEBUG) << "Run once a minute stuff"
 		short_msg_pending::smp_my_2nd_ipaddress = myip.c_str();
 	}
 
@@ -896,23 +925,14 @@ class SMq {
 	/* Convert a short_msg to a given content type */
 	//void convert_message(short_msg_pending *qmsg, short_msg::ContentType toType);
 
-	/* handle an incoming datagram */
-	/* timestamp is used if you want to set the timestamp for an incoming message
-	   0 will cause a new timestamp to be generated */
-	void handle_datagram(int len, char* buffer, long long timestamp, bool insert=true);
-
 	// Main loop listening for dgrams and processing them.
-	void main_loop();
+	void main_loop(int tmo);
 
 	/* If nothing happens for a while, handle that.  */
 	void process_timeout();
-	
-	/* Verify that sufficient funds exist to send a particular message. */
-	enum sm_state verify_funds(short_msg_p_list::iterator& qmsg);
 
 	/* Send a SIP response to acknowledge reciept of a short msg. */
-	void respond_sip_ack(int errcode, short_msg_pending *smp, 
-		char *netaddr, size_t netaddrlen);
+	void respond_sip_ack(int errcode, short_msg_pending *smp, char *netaddr, size_t netaddrlen);
 
 	/*
 	 * Originate a short message
@@ -1017,22 +1037,39 @@ class SMq {
 	// new messages as a 1-entry short_msg_p_list and then move
 	// them to the real list.  Note that this moves the message's list
 	// entry itself off the original list (which can then be discarded).
+	// Push_front only does a copy so use splice ??
+	void insert_new_message(short_msg_p_list &smp) {
+		lockSortedList();
+		time_sorted_list.splice (time_sorted_list.begin(), smp);
+		time_sorted_list.begin()->set_state (INITIAL_STATE);  // Note set state can move the entries in the queue
+		// time_sorted_list.begin()->timeout = 0;  // it is already
+		// Low timeout will cause this msg to be at front of queue.
+		unlockSortedList();
+		debug_dump(); //svgfix
+		ProcessReceivedMsg();
+	}
+
+	// This version lets the initial state be set.
+	void insert_new_message(short_msg_p_list &smp, enum sm_state s) {
+		LOG(DEBUG) << "Insert message into queue 2";
+		lockSortedList();
+		time_sorted_list.splice (time_sorted_list.begin(), smp);
+		time_sorted_list.begin()->set_state (s);
+		// time_sorted_list.begin()->timeout = 0;  // it is already
+		// Low timeout will cause this msg to be at front of queue.
+		unlockSortedList();
+		debug_dump(); //svgfix
+		ProcessReceivedMsg();
+	}
 	// This version lets the state and timeout be set.
-	void insert_new_message(short_msg_p_list &smp, enum sm_state s, 
-				time_t t, bool insert = true) {
-		if (insert && !my_backup.insert(smp.begin()->timestamp, smp.begin()->text)){
-			LOG(INFO) << "Unable to backup message: " << time_sorted_list.begin()->timestamp;
-		}
+	void insert_new_message(short_msg_p_list &smp, enum sm_state s, time_t t) {
+		LOG(DEBUG) << "Insert message into queue 3";
+		lockSortedList();
 		time_sorted_list.splice (time_sorted_list.begin(), smp);
 		time_sorted_list.begin()->set_state (s, t);
-	}
-	// This version lets the initial state be set.
-	void insert_new_message(short_msg_p_list &smp, enum sm_state s, bool insert=true) {
-		insert_new_message(smp, s, 0, insert);
-	}
-	//Basic version
-	void insert_new_message(short_msg_p_list &smp, bool insert=true) {
-		insert_new_message(smp, INITIAL_STATE, insert);
+		unlockSortedList();
+		debug_dump(); //svgfix
+		ProcessReceivedMsg();
 	}
 
 	/* Debug dump of the queue and the SMq class in general. */
@@ -1056,6 +1093,7 @@ class SMq {
 	 */
 	void set_state(short_msg_p_list::iterator sm, enum sm_state newstate) {
 		short_msg_p_list temp;
+		lockSortedList();
 		/* Extract the current sm from the time_sorted_list */
 		temp.splice(temp.begin(), time_sorted_list, sm);
 		sm->set_state(newstate);
@@ -1071,7 +1109,8 @@ class SMq {
 				break;
 			}
 		}
-	};
+		unlockSortedList();
+	} // set_state
 
 	/*
  	 * When we reset the state and timestamp of a message,
@@ -1081,8 +1120,8 @@ class SMq {
 	 * With multisets you can't splice an element out while keeping the
 	 * element... etc.
 	 */
-	void set_state(short_msg_p_list::iterator sm, enum sm_state newstate,
-		time_t timestamp) {
+	void set_state(short_msg_p_list::iterator sm, enum sm_state newstate, time_t timestamp) {
+		lockSortedList();
 		short_msg_p_list temp;
 		/* Extract the current sm from the time_sorted_list */
 		temp.splice(temp.begin(), time_sorted_list, sm);
@@ -1099,7 +1138,8 @@ class SMq {
 				break;
 			}
 		}
-	};
+		unlockSortedList();
+	} // set_state
 
 	/* Save the queue to a file; read it back from a file.
 	   Reading a queue file doesn't delete things that might already
@@ -1109,9 +1149,12 @@ class SMq {
 	save_queue_to_file(std::string qfile);
 	bool
 	read_queue_from_file(std::string qfile);
-};
 
+
+}; // SMq class
 } // namespace SMqueue
+
+extern SMqueue::SMq smq;
 
 #endif
 

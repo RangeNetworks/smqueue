@@ -1,9 +1,11 @@
+
 /*
  * SMlistener.h - Network SIP handler for Short Messages (SMS's) for OpenBTS.
  * Written by John Gilmore, July 2009.
  *
  * Copyright 2009 Free Software Foundation, Inc.
- *
+ Copyright 2011, 2013, 2014 Range Networks, Inc.
+* *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -28,6 +30,7 @@
 #include "poll.h"
 #include <sys/socket.h>
 #include <unistd.h>
+#include <Logger.h>
 
 namespace SMqueue {
 
@@ -266,6 +269,9 @@ class SMnet {
 	 */
 	char *
 	new_call_number();
+
+	void verifySocket(int socketNum);
+
 };
 
 

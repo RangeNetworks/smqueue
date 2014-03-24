@@ -2,7 +2,7 @@
  * SMSC.h - SMS Center implementation for OpenBTS.
  * Written by Alexander Chemeris, 2010.
  *
- * Copyright 2010 Free Software Foundation, Inc.
+ * Copyright 2010, 2014 Free Software Foundation, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -181,7 +181,7 @@ short_code_action sendSIP_init_text(const char *imsi,
 void pack_tpdu(short_msg_p_list::iterator &smsg)
 {
 	// Pack RP-DATA to bitstream
-	RLFrame RPDU_new(smsg->rp_data->bitsNeeded());
+	RLFrame RPDU_new(BitVector(smsg->rp_data->bitsNeeded()));
 	smsg->rp_data->write(RPDU_new);
 	LOG(DEBUG) << "New RLFrame: " << RPDU_new;
 
@@ -274,46 +274,6 @@ short_code_action submitSMS(const char *imsi, const TLSubmit& submit,
 	LOG(INFO) << "from " << imsi << " message: " << submit;
 	const TLAddress& address = submit.DA();
 
-	// Hey! You can get to the HLR through the scp argument!
-	SubscriberRegistry& hlr = scp->scp_smq->my_hlr;
-
-	// Is this message going to a short code?
-	// Short codes costs are special cases and will be checked im the short code handlers thmeselves.
-	bool isShortCode = (short_code_map.find(address.digits()) != short_code_map.end());
-
-	// TODO: If this is a short code, and we know that the cost will be 0, why waste time hitting the subscriber registry? -DCK
-	//       That means, don't look up the service, and don't check to see if any user is prepaid.
-
-	// FIXME: There are some helper functions in smqueue.cpp. Why not use those? Or move them somewhere to be used commonly. -DCK
-
-	// Get the delivery cost.
-	string service;
-	const char * dialedNumber = address.digits();
-	if (hlr.getIMSI(dialedNumber)) service = gConfig.getStr("ServiceType.Local");
-	else service = gConfig.getStr("ServiceType.Networked");
-	int cost = hlr.serviceCost(service.c_str());
-	if (isShortCode) cost = 0;
-	if (cost>=0) scp->scp_qmsg_it->cost = cost;
-	else { LOG(ALERT) << "cannot get cost for service type " << service; }
-	scp->scp_qmsg_it->service = service;
-
-	// If the message is NOT inbound from the relay, bill
-	if (!scp->scp_qmsg_it->from_relay) {
-		// Check the subscriber's balance now.
-		bool prepaid;
-        	hlr.isPrepaid(imsi,prepaid);
-		int accountBalance = 0;
-		SubscriberRegistry::Status stat = hlr.balanceRemaining(imsi,accountBalance);
-		if (stat != SubscriberRegistry::SUCCESS) { LOG(ALERT) << "cannot check account for user " << imsi; }
-		if (prepaid && cost!=0 && accountBalance<cost) {
-			ostringstream os;
-			// TODO: Make customizable
-			os << "Account balance of " << accountBalance << " too low for service cost of " << cost << ".";
-			scp->scp_reply = new_strdup(os.str().c_str());
-			return SCA_REPLY;
-		}
-	}
-
 //#if 0
 //This is broken under Unbuntu becasue of changes in the "mail" program.
 
@@ -330,7 +290,7 @@ short_code_action submitSMS(const char *imsi, const TLSubmit& submit,
 		*term = '\0';
 		char* SMTPPayload = term+1;
 		// Get the sender's E.164 to put in the subject line.
-		char* clid = hlr.getCLIDLocal(imsi);
+		char* clid = scp->scp_smq->my_hlr.getCLIDLocal(imsi);
 		char subjectLine[200];
 		if (!clid) sprintf(subjectLine,"from %s",imsi);
 		else {
@@ -350,7 +310,7 @@ short_code_action submitSMS(const char *imsi, const TLSubmit& submit,
 	// And whether of not we can resolve the destination, and a global relay does not exist,
 	// AND the message is not to a shortcode.
 	if (gConfig.getStr("SIP.GlobalRelay.IP").length() == 0 && gConfig.getStr("SMS.HTTPGateway.URL").length() != 0 &&
-		!destinationNumber && !isShortCode)
+		!destinationNumber)
 		// If there is an external HTTP gateway, use it.
 		return sendHTTP(address.digits(), body);
 

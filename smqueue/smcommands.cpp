@@ -1,4 +1,20 @@
 /*
+* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2011, 2013, 2014 Range Networks, Inc.
+*
+* This software is distributed under multiple licenses;
+* see the COPYING file in the main directory for licensing
+* information for this specific distribuion.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*/
+
+/*
  * Smcommands.cpp - Short Message (SMS) commands ("shortcodes") for OpenBTS.
  * Written by John Gilmore, August 2009.
  *
@@ -34,7 +50,6 @@
 
 using namespace std;
 using namespace SMqueue;
-
 extern ConfigurationTable gConfig;
 
 
@@ -54,7 +69,7 @@ whiplash_quit (const char *imsi, const char *msgtext, short_code_params *scp)
 			return SCA_EXEC_SMQUEUE;
 		}
 		if (!strncmp("testsave", msgtext+len+1, 4)) {
-			scp->scp_smq->save_queue_to_file(gConfig.getStr("SC.WhiplashQuit.SaveFile").c_str());
+			scp->scp_smq->save_queue_to_file(gConfig.getStr("SC.WhiplashQuit.SaveFile").c_str());  // Save on whiplash_quit
 			scp->scp_reply = new_strdup("Done.");
 			return SCA_REPLY;
 		}
@@ -78,7 +93,7 @@ shortcode_quick_chk (const char *imsi, const char *msgtext,
 {
 	ostringstream answer;
 	
-	answer << scp->scp_smq->time_sorted_list.size() << " queued.";
+	answer << scp->scp_smq->time_sorted_list.size() << " queued.";  // No lock okay
 	scp->scp_reply = new_strdup(answer.str().c_str());
 	return SCA_REPLY;
 }
@@ -93,10 +108,11 @@ shortcode_four_one_one (const char *imsi, const char *msgtext,
 {
 	ostringstream answer;
 	
-        short_msg_p_list::iterator x;
         int n = 0, missing = 0, registering = 0, bouncing = 0;
         
-        for (x = scp->scp_smq->time_sorted_list.begin();
+        smq.lockSortedList();
+        short_msg_p_list::iterator x;
+        for (x = scp->scp_smq->time_sorted_list.begin();   // locked
              x != scp->scp_smq->time_sorted_list.end(); x++) {
 	    n++;
 	    switch (x->state) {
@@ -121,10 +137,13 @@ shortcode_four_one_one (const char *imsi, const char *msgtext,
 		    registering++;
 		    break;
 
-		default: 
-		    ;
-            }
-        }
+		default:
+			break;
+
+            } //switch
+        }  // for
+        smq.unlockSortedList();
+
         answer <<  n << " queued";
 	if (missing)
 	    answer << ", " << missing << " unlocatable";
@@ -148,7 +167,7 @@ shortcode_four_one_one (const char *imsi, const char *msgtext,
 	char *newfrom = scp->scp_smq->my_hlr.getCLIDLocal(username);
 	answer << "phonenum " << newfrom;
 
-	time_t now = time(NULL);
+	time_t now = time(NULL);  // Use real time for logging
 	char timebuf[26+/*slop*/4];	// 
 	answer << ", ";
 	ctime_r(&now, timebuf);
@@ -166,8 +185,8 @@ shortcode_four_one_one (const char *imsi, const char *msgtext,
  * Remove a message from the queue, by its tag.
  * If first char is "-", don't reply, just do it.
  * (this keeps the reply out of the queue, while debugging.)
- * If argument is "6000", then delete any queued message with
- * timeout greater than 5000 seconds.
+ * Delete any queued message with
+ * timeout greater than 5000 seconds (83 minutes).
  */
 enum short_code_action
 shortcode_zap_queued (const char *imsi, const char *msgtext,
@@ -183,14 +202,14 @@ shortcode_zap_queued (const char *imsi, const char *msgtext,
         msgtext++;
     }
 
+    smq.lockSortedList();
     if (!strcmp(gConfig.getStr("SC.ZapQueued.Password").c_str(), msgtext)) {
         // Delete all messages in queue in NO_STATE state or with
         // huge timeouts.
-        short_msg_p_list::iterator x;
-        time_t toolate = 5000 
-                       + scp->scp_smq->time_sorted_list.begin()->gettime();
         int n = 0;
-        
+        short_msg_p_list::iterator x;
+        time_t toolate = SMq::LONGDELETMS // 83 minutes
+                        + scp->scp_smq->time_sorted_list.begin()->msgettime();
         for (x = scp->scp_smq->time_sorted_list.begin();
              x != scp->scp_smq->time_sorted_list.end(); x++) {
             if (x->state == NO_STATE || toolate <= x->next_action_time) {
@@ -211,12 +230,13 @@ shortcode_zap_queued (const char *imsi, const char *msgtext,
             answer << "Deleting queued msg '" << msgtext 
                    << " in state " << sent_msg->state
                    << " and timeout " 
-                   << sent_msg->next_action_time - sent_msg->gettime();
+                   << sent_msg->next_action_time - sent_msg->msgettime();
            resplist.splice(resplist.begin(),
                            scp->scp_smq->time_sorted_list, sent_msg);
            resplist.pop_front();   // pop and delete the sent_msg.
         }
     }
+    smq.unlockSortedList();
 
     scp->scp_reply = new_strdup(answer.str().c_str());
     return noreply? SCA_DONE: SCA_REPLY;
@@ -278,6 +298,7 @@ shortcode_register (const char *imsi, const char *msgtext,
 		default:
 			answer << "Error: invalid character '" << *p << "' in requested number";
 			badnum++;
+			break;
 		}
 	}
 	*q++ = '\0';		// Null-terminate it.
@@ -361,25 +382,6 @@ shortcode_register (const char *imsi, const char *msgtext,
 
 
 
-enum short_code_action
-shortcode_balance (const char *imsi, const char *msgtext,
-		      short_code_params *scp)
-{
-	SubscriberRegistry& hlr = scp->scp_smq->my_hlr;
-	int accountBalance = 0;
-	SubscriberRegistry::Status stat = hlr.balanceRemaining(imsi,accountBalance);
-	if (stat != SubscriberRegistry::SUCCESS) {
-		LOG(ALERT) << "cannot check account for user " << imsi;
-		scp->scp_reply = new_strdup("operation failed");
-	} else {
-		char rsp[200];
-		sprintf(rsp,gConfig.getStr("SC.Balance.String").c_str(),accountBalance);
-		scp->scp_reply = new_strdup(rsp);
-	}
-	return SCA_REPLY;
-}
-
-
 /*
  * Here is where we list all the functions that we care to make
  * available -- along with their phone numbers.
@@ -401,8 +403,6 @@ SMqueue::init_smcommands (short_code_map_t *scm)
 		(*scm)[gConfig.getStr("SC.WhiplashQuit.Code").c_str()] = whiplash_quit;
 	if (gConfig.defines("SC.SMSC.Code"))
 		(*scm)[gConfig.getStr("SC.SMSC.Code").c_str()] = shortcode_smsc;
-	if (gConfig.defines("SC.Balance.Code"))
-		(*scm)[gConfig.getStr("SC.Balance.Code").c_str()] = shortcode_balance;
-		
+
 //	(*scm)["666"]    = shortcode_text_access;
 }

@@ -3,6 +3,7 @@
  * Written by John Gilmore, July 2009.
  *
  * Copyright 2009 Free Software Foundation, Inc.
+ * Copyright 2014 Range Networks, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -32,10 +33,13 @@
 #include <cstdlib>			// l64a
 #include <arpa/inet.h>			// inet_ntop
 
+
 #include "smnet.h"
 #include "smqueue.h"
 
+
 using namespace std;
+
 
 namespace SMqueue {
 
@@ -87,13 +91,15 @@ SMnet::send_dgram(char *buffer, size_t buffsize, char *toaddr,
 }
 
 
-/* Talk to the GSM engine... */
+/* Talk to the GSM engine...
+ * good return true
+ * bad return false
+ * */
 bool
 SMnet::deliver_msg_datagram(SMqueue::short_msg_pending *smp)
 {
 	char *scheme, *host, *port;
 	int s, i;
-
 	// Make sure the text is valid before writing it for debug,
 	// or delivering it to a handset.
 	smp->make_text_valid();
@@ -174,7 +180,7 @@ SMnet::deliver_msg_datagram(SMqueue::short_msg_pending *smp)
 
 /* 
  * Network listener for SIP Short Messages.
- * Timeout in milliseconds (negative means infinity).
+ * Timeout in milliseconds (negative means infinity)
  *
  * Result is <0 if error; 
  * Result is >0 if buffer contains a received packet.
@@ -182,6 +188,8 @@ SMnet::deliver_msg_datagram(SMqueue::short_msg_pending *smp)
  * our caller.)
  * Result == 0 if caller was interested in writing, there's no received
  * packet yet, and it's OK to write now.  OR if we timed out.
+ *
+ * Reads data in from the network (opned UDP socket on a specific port
  */
 int
 SMnet::get_next_dgram (char *buffer, size_t bufferlen, int mstimeout)
@@ -191,13 +199,21 @@ SMnet::get_next_dgram (char *buffer, size_t bufferlen, int mstimeout)
 	short revents;
 	socklen_t addrlen; 
 	size_t recvlength;
+	
+	LOG(DEBUG) << "Try to load datagram tmo " << mstimeout << " socket fd " << sockets[0].fd;
 
+	// verifySocket(1);  // Was used to verify socket are working correctly
 	i = poll_sockets(mstimeout);
-	if (i < 0) 	// error
+	if (i < 0) {	// error
+		LOG(DEBUG) << "Error returned from poll";
 		return i;
-	if (i == 0)	// timeout
+	}
+	if (i == 0)	 {// timeout
+		LOG(DEBUG) << "Timeout returned from poll";
 		return 0;
+	}
 
+	//LOG(DEBUG) << "Got past poll for socket";
 	for (j = 0; j < numsockets; j++) {	// Walk the sockets.
 		fd = sockets[j].fd;
 		revents = sockets[j].revents;
@@ -211,6 +227,8 @@ SMnet::get_next_dgram (char *buffer, size_t bufferlen, int mstimeout)
 			// FIXME, TCP and files aren't supported yet
 			addrlen = sizeof(src_addr);
 			flags = MSG_DONTWAIT|MSG_TRUNC;
+
+// Read from socket
 			recvlength = recvfrom(fd, buffer, bufferlen, flags,
 					(sockaddr *)&src_addr, &addrlen);
 			if (recvlength < 0) {
@@ -267,6 +285,9 @@ SMnet::get_next_dgram (char *buffer, size_t bufferlen, int mstimeout)
  * Make one or more sockets and set up to listen on them.
  * This function is xxx ought-to-be ipv6-agnostic, and is even
  * almost UDP/TCP-agnostic.
+ * returns
+ * 		true got socket
+ * 		false no socket
  */
 bool
 SMnet::listen_on_port(std::string port)
@@ -284,13 +305,14 @@ SMnet::listen_on_port(std::string port)
 	s = getaddrinfo(NULL, (port.c_str()), &myhints, &myaddrs);
 	if (s != 0) {
 		LOG(ERR) << "listen_on_port(" << port 
-		     << ") can't get addr/port to listen on";
-		return -1;
+		     << ") can't get addr/port to listen on" ;
+		return false;
 	}
 	
 	for (ap = myaddrs; ap != NULL; ap = ap->ai_next) {
 	
 		int fd, i;
+		LOG(DEBUG) << "listen_on_port try address " << string_addr (ap, true);
 
 		fd = socket(ap->ai_family, ap->ai_socktype, ap->ai_protocol);
 		if (fd < 0)
@@ -299,9 +321,9 @@ SMnet::listen_on_port(std::string port)
 		i = bind(fd, ap->ai_addr, ap->ai_addrlen);
 		if (i < 0) {
 			LOG(ERR) << "listen_on_port(" << port
-			     << ") can't bind to addr '"
+			     << ") can't bind (It's okay as long as one port is opened) to addr '"
 			     << string_addr (ap, true) << "': " 
-			     << strerror(errno);
+			     << strerror(errno) << " errno:" << errno;
 			close(fd);		// Don't leave it dangling
 			continue;		// Try another
 		}
@@ -312,12 +334,12 @@ SMnet::listen_on_port(std::string port)
 #endif
 
 		// Now set up our class to poll on, and use, this socket.
-		add_socket (fd, POLLIN|POLLPRI, ap->ai_family,
+		add_socket(fd, POLLIN|POLLPRI, ap->ai_family,
 			ap->ai_socktype, ap->ai_protocol, ap->ai_addr,
 			ap->ai_addrlen);
 		// Be slightly verbose here.
-		LOG(INFO) << "Listening at address '"
-		     << string_addr (ap, true) << "'.";
+		LOG(ERR) << "Listening at address '"
+		     << string_addr (ap, true) << " fd " << fd ;
 		gotasocket++;
 		// And keep looping to make several sockets if we can!
 	}
@@ -576,4 +598,35 @@ SMnet::new_call_number()
 }
 
 
-} // namespace SMlistener
+/*
+ * socketnumber 1-N based
+ */
+void SMnet::verifySocket(int socketNum) {
+	int optval;
+	socklen_t optlen;
+	int rc;
+
+	if (!sockets || numsockets == 0 || (socketNum > numsockets )) {
+		LOG(DEBUG) << "No socket to verify";
+		return;
+	}
+
+	optlen = sizeof(optval);
+	rc = getsockopt(sockets[socketNum-1].fd, SOL_SOCKET, SO_TYPE, &optval, &optlen);
+	if (rc == 0) {
+		if (optlen == sizeof(int)) {
+			if (optval == 0) {
+				LOG(DEBUG) << "Socket not valid zero optval";
+			} else {
+				LOG(DEBUG) << "Socket valid type " << optval;
+			}
+		} else {
+			LOG(DEBUG) << "Socket not valid optlen wrong " << optval;
+		}
+	} else {
+		LOG(DEBUG) << "getsockopt returned error " << rc;
+	}
+
+} // SMnet::verifySocket
+
+} // namespace SMQueue

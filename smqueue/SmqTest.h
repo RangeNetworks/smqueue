@@ -1,7 +1,6 @@
-/**@file Global system parameters. */
 /*
-* Copyright 2008, 2009, 2014 Free Software Foundation, Inc.
-* Copyright 2011 Range Networks, Inc.
+* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2011, 2013, 2014 Range Networks, Inc.
 *
 * This software is distributed under multiple licenses;
 * see the COPYING file in the main directory for licensing
@@ -13,27 +12,27 @@
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
 */
 
 /*
-	This file keeps global system parameters.
-*/
+ * SmqTest.h
+ *
+ *  Created on: Dec 16, 2013
+ *      Author: scott
+ */
 
-#ifndef GLOBALS_H
-#define GLOBALS_H
+#ifndef SMQTEST_H_
+#define SMQTEST_H_
 
-#include <Configuration.h>
+void StartTestThreads();
 
-
-
-/**
-	Just about everything goes into the configuration table.
-	This should be defined in the main body of the top-level application.
-*/
-extern ConfigurationTable gConfig;
-
-/** The version string. */
-extern const char *gVersionString;
-
+#if 0
+class SmqTest {
+public:
+	SmqTest();
+	virtual ~SmqTest();
+};
 #endif
+
+
+#endif /* SMQTEST_H_ */

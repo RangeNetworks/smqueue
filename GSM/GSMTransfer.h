@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2014 Free Software Foundation, Inc.
 *
 * This software is distributed under multiple licenses; see the COPYING file in the main directory for licensing information for this specific distribuion.
 *
@@ -387,7 +387,7 @@ class L2Frame : public BitVector {
 	bool M() const { return mStart[8*2+6] & 0x01; }
 
 	/** Return the L3 payload part.  Assumes A or B header format. */
-	BitVector L3Part() const { return segment(8*3,8*L()); }
+	BitVector L3Part() const { return cloneSegment(8*3,8*L()); }
 
 	/** Return NR sequence number, GSM 04.06 3.5.2.4.  Assumes A or B header. */
 	unsigned NR() const { return peekField(8*1+0,3); }

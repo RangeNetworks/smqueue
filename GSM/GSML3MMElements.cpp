@@ -2,9 +2,9 @@
 	@brief Elements for Mobility Management messages, GSM 04.08 9.2.
 */
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2014 Free Software Foundation, Inc.
 * Copyright 2010 Kestrel Signal Processing, Inc.
-*
+* Copyright 2014 Range Networks, Inc.
 * This software is distributed under multiple licenses;
 * see the COPYING file in the main directory for licensing
 * information for this specific distribuion.

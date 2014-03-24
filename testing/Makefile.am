@@ -31,12 +31,14 @@ noinst_PROGRAMS = \
 smtest_SOURCES = \
 	smtest.cpp 
 smtest_LDADD = \
-	$(COMMON_LA)
+	$(COMMON_LA) \
+	$(SQLITE_LA)
 
 smrelaytest_SOURCES = \
 	smrelaytest.cpp
 smrelaytest_LDADD = \
-	$(COMMON_LA)
+	$(COMMON_LA) \
+	$(SQLITE_LA)
 
 sminterface_SOURCES = \
 	sminterface.cpp

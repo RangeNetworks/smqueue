@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2014 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Affero Public License.
 * See the COPYING file in the main directory for details.
@@ -734,7 +734,7 @@ class CPUserData : public GSM::L3ProtocolElement {
 
 	CPUserData(const RPMessage& RPM)
 		:L3ProtocolElement(),
-		mRPDU(RPM.bitsNeeded())
+		mRPDU(BitVector(RPM.bitsNeeded()))
 	{
 		RPM.write(mRPDU);
 	}

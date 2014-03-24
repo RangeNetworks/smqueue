@@ -24,23 +24,28 @@ SMS_INCLUDEDIR = $(top_srcdir)/SMS
 GLOBALS_INCLUDEDIR = $(top_srcdir)/Globals
 SQLITE_INCLUDEDIR = $(top_srcdir)/sqlite3
 SR_INCLUDEDIR = $(top_srcdir)/SR
+NODEMANAGER_INCLUDEDIR = $(top_srcdir)/NodeManager
+JSONBOX_INCLUDEDIR = $(top_srcdir)/NodeManager/JsonBox-0.4.3/include
 
-SVNDEV = -D'SVN_REV="$(shell svnversion -n $(top_builddir))"'
+SVNDEV = -D'SVN_REV="$(shell svn info $(top_builddir) | grep "Last Changed Rev:" | cut -d " " -f 4) CommonLibs:rev$(shell svn info $(top_builddir)/CommonLibs | grep "Last Changed Rev:" | cut -d " " -f 4)"'
 
 STD_DEFINES_AND_INCLUDES = \
 	$(SVNDEV) \
+	-DSR_API_ONLY \
 	-I$(COMMON_INCLUDEDIR) \
 	-I$(GSM_INCLUDEDIR) \
 	-I$(SMS_INCLUDEDIR) \
 	-I$(GLOBALS_INCLUDEDIR) \
 	-I$(SR_INCLUDEDIR) \
+	-I$(NODEMANAGER_INCLUDEDIR) \
+	-I$(JSONBOX_INCLUDEDIR) \
 	-I$(SQLITE_INCLUDEDIR)
 
 COMMON_LA = $(top_builddir)/CommonLibs/libcommon.la
 GSM_LA = $(top_builddir)/GSM/libGSM.la
 SMS_LA = $(top_builddir)/SMS/libSMS.la
 GLOBALS_LA = $(top_builddir)/Globals/libglobals.la
-SR_LA = $(top_builddir)/SR/libSR.la
+NODEMANAGER_LA = $(top_builddir)/NodeManager/libnodemanager.la -lzmq
 SQLITE_LA = $(top_builddir)/sqlite3/libsqlite.la -ldl
 
 MOSTLYCLEANFILES = *~

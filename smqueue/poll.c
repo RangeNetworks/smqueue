@@ -37,7 +37,7 @@
 
 	This software is released under the following license:
 
-		Copyright (c) 1995-2002 Brian M. Clapper
+		Copyright (c) 1995-2014 Brian M. Clapper
 		All rights reserved.
 
 		Redistribution and use in source and binary forms are

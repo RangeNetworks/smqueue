@@ -1,6 +1,6 @@
 /*
 * Copyright 2008 Free Software Foundation, Inc.
-* Copyright 2011 Range Networks, Inc.
+* Copyright 2011, 2014 Range Networks, Inc.
 *
 * This software is distributed under multiple licenses;
 * see the COPYING file in the main directory for licensing
