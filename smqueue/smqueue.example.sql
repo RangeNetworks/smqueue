@@ -1,6 +1,6 @@
 --
--- This file was generated using: ./smqueue/smqueue --gensql
--- binary version: release 3.1TRUNK built May 22 2013 rev5554M 
+-- This file was generated using: ./smqueue --gensql
+-- binary version: release 4.0TRUNK built Mar 25 2014 rev CommonLibs:rev 
 --
 -- Future changes should not be put in this file directly but
 -- rather in the program's ConfigurationKey schema.
@@ -12,20 +12,18 @@ INSERT OR IGNORE INTO "CONFIG" VALUES('Asterisk.address','127.0.0.1:5060',0,0,'T
 INSERT OR IGNORE INTO "CONFIG" VALUES('Bounce.Code','101',0,0,'The short code that bounced messages originate from.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Bounce.Message.IMSILookupFailed','Cannot determine return address; bouncing message.  Text your phone number to 101 to register and try again.',0,0,'The bounce message that is sent when the originating IMSI cannot be verified.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Bounce.Message.NotRegistered','Phone not registered here.',0,0,'Bounce message indicating that the destination phone is not registered.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('CDRFile','/var/lib/smq.cdr',0,0,'Log CDRs here.  To enable, specify an absolute path to where the CDRs should be logged.  To disable, execute "unconfig CDRFile".');
+INSERT OR IGNORE INTO "CONFIG" VALUES('CDRFile','/var/lib/OpenBTS/smq.cdr',0,0,'Log CDRs here.  To enable, specify an absolute path to where the CDRs should be logged.  To disable, execute "unconfig CDRFile".');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Control.NumSQLTries','3',0,0,'Number of times to retry SQL queries before declaring a database access failure.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Debug.print_as_we_validate','0',0,0,'1=enabled, 0=disabled - Generate lots of output during validation.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Log.Alarms.Max','20',0,0,'Maximum number of alarms to remember inside the application.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Log.File','',0,0,'Path to use for textfile based logging.  By default, this feature is disabled.  To enable, specify an absolute path to the file you wish to use, eg: /tmp/my-debug.log.  To disable again, execute "unconfig Log.File".');
 INSERT OR IGNORE INTO "CONFIG" VALUES('Log.Level','NOTICE',0,0,'Default logging level when no other level is defined for a file.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Balance.Code','1000',0,0,'Short code to the application which tells the sender their current account balance.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Balance.String','Your account balance is %d',0,0,'Balance message string.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.DebugDump.Code','2336',0,0,'Short code to the application which dumps debug information to the log.  Intended for administrator use.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Info.Code','411',0,0,'Short code to the application which tells the sender their own number and registration status.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.QuickChk.Code','2337',0,0,'Short code to the application which tells the sender the how many messages are currently queued.  Intended for administrator use.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Code','101',0,0,'Short code to the application which registers the sender to the system.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Max','12',0,0,'The maximum number of digits a phone number can have.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Min','4',0,0,'The minimum number of digits a phone number must have.');
+INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Max','10',0,0,'The maximum number of digits a phone number can have.');
+INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Min','7',0,0,'The minimum number of digits a phone number must have.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Digits.Override','0',0,0,'1=enabled, 0=disabled - Ignore phone number digit length checks.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Msg.AlreadyA','Your phone is already registered as',0,0,'First part of message sent during registration if the handset is already registered, followed by the current handset number.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SC.Register.Msg.AlreadyB','.',0,0,'Second part of message sent during registration if the handset is already registered.');
@@ -56,16 +54,13 @@ INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.FakeSrcSMSC','0000',0,0,'Use this to 
 INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.HTTPGateway.Retries','5',0,0,'Maximum retries for HTTP gateway attempt.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.HTTPGateway.Timeout','5',0,0,'Timeout for HTTP gateway attempt in seconds.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.HTTPGateway.URL','',0,0,'URL for HTTP API.  Used directly as a C format string with two "%s" substitutions.  First "%s" gets replaced with the destination number.  Second "%s" gets replaced with the URL-endcoded message body.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('ServiceType.Local','in-network-SMS',0,0,'Rate service name for in-network SMS messages.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('ServiceType.Networked','out-of-network-SMS',0,0,'Rate service name for out-of-network SMS messages.');
+INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.MaxRetries','2160',0,0,'Messages will only be attempted to be sent this many times before giving up and being dropped. Set to 0 to allow infinite retries.');
+INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.RateLimit','0',0,0,'Limit delivery rate to one message every X seconds. Set to 0 to disable rate limiting.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.A3A8','../comp128',0,0,'Path to the program that implements the A3/A8 algorithm.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.Manager.Title','Subscriber Registry',0,0,'Title text to be displayed on the subscriber registry manager.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.Manager.VisibleColumns','name username type context host',0,0,'A space separated list of columns to display in the subscriber registry manager.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.Port','5064',0,0,'Port used by the SIP Authentication Server. NOTE: In some older releases (pre-2.8.1) this is called SIP.myPort.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.UpstreamServer','',0,0,'URL of the subscriber registry HTTP interface on the upstream server.  By default, this feature is disabled.  To enable, specify a server URL eg: http://localhost/cgi/subreg.cgi.  To disable again, execute "unconfig SubscriberRegistry.UpstreamServer".');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.db','/var/lib/asterisk/sqlite3dir/sqlite3.db',0,0,'The location of the sqlite3 database holding the subscriber registry.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('savefile','/tmp/save',0,0,'The file to save SMS messages to when exiting.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('Backup.db', '/tmp/smq.backup.db',0,0,'The backup database for SMQ messages');
 COMMIT;
 
 
