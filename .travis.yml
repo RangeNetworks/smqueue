@@ -12,6 +12,7 @@ before_install:
  - sudo dpkg -i *.deb
  - cd ..
  - sed -i 's/git@github.com:/git:\/\/github.com\//' .gitmodules
+ - git submodule update --init
  - sed -i 's/git@github.com:/git:\/\/github.com\//' ./SR/.gitmodules
  - git submodule update --init --recursive
 
