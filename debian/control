@@ -9,8 +9,8 @@ Standards-Version: 3.7.3
 Package: smqueue
 Section: comm
 Priority: optional
-Architecture: i386
+Architecture: any
 Essential: no
-Depends: sqlite3, libosip2-4, libc6-i686, pkg-config, range-libzmq
+Depends: sqlite3, libosip2-4, libc6, pkg-config, range-libzmq
 Description: Range Networks - SMQueue RFC-3428 Store and Forward Server
 

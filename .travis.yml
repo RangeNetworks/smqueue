@@ -1,0 +1,23 @@
+language: cpp
+compiler: gcc
+
+git:
+  submodules: false
+
+before_install:
+ - sudo apt-get install -qq libosip2-dev
+ - git clone https://github.com/RangeNetworks/libzmq.git
+ - cd libzmq
+ - ./build.sh
+ - sudo dpkg -i *.deb
+ - cd ..
+ - sed -i 's/git@github.com:/git:\/\/github.com\//' .gitmodules
+ - sed -i 's/git@github.com:/git:\/\/github.com\//' ./SR/.gitmodules
+ - git submodule update --init --recursive
+
+#install:
+#  - sh bootstrap.sh
+
+script:
+  - dpkg-buildpackage
+
