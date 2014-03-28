@@ -38,7 +38,7 @@
 #include <GSML3Message.h>
 #include <GSML3CCElements.h>
 #include <GSML3MMElements.h>
-
+#include <Logger.h>
 
 namespace SMS {
 
@@ -91,13 +91,19 @@ public:
 
 	TLAddress(GSM::TypeOfNumber wType, GSM::NumberingPlan wPlan, const char* wDigits)
 		:TLElement(),
-		mType(wType),mPlan(wPlan),mDigits(wDigits)
-	{ }
+		mPlan(wPlan),mDigits(wDigits)
+	{
+		mType = (wDigits[0] == '+') ?  GSM::InternationalNumber : GSM::NationalNumber;
+		//LOG(DEBUG) << "TLaddrress ctor type=" << mType << " Digits " << wDigits;
+	}
 
 	TLAddress(const char* wDigits)
 		:TLElement(),
-		mType(GSM::NationalNumber),mPlan(GSM::E164Plan),mDigits(wDigits)
-	{ }
+		mPlan(GSM::E164Plan),mDigits(wDigits)
+	{
+		mType = (wDigits[0] == '+') ?  GSM::InternationalNumber : GSM::NationalNumber;
+		//LOG(DEBUG) << "TLaddrress ctor type=" << mType << " Digits " << wDigits;
+	}
 
 	const char *digits() const { return mDigits.digits(); }
 	GSM::TypeOfNumber type() const { return mType; }
@@ -299,7 +305,7 @@ class TLMessage {
 	virtual void writeBody( TLFrame& frame, size_t &rp) const =0;
 
 	virtual void text(std::ostream& os) const
-		{ os << MTI(); }
+		{ os << "MTI="<<MTI(); }
 
 	// Accessors
 	bool MMS() const { return mMMS; }
@@ -323,7 +329,7 @@ class TLMessage {
 	void writeSRQ(TLFrame& fm) const { fm[2]=mSRQ; }
 	void parseSRQ(const TLFrame& fm) { mSRQ=fm[2]; }
 	void writeUDHI(TLFrame& fm, bool udhi) const { fm[1]=udhi; }
-	bool parseUDHI(const TLFrame& fm) { return fm[1]; }
+	bool parseUDHI(const TLFrame& fm) { return mUDHI = fm[1]; }
 	void writeRP(TLFrame& fm) const { fm[0]=mRP; }
 	void parseRP(const TLFrame& fm) { mRP=fm[0]; }
 	void writeUnused(TLFrame& fm) const { fm.fill(0,3,2); } ///< Fill unused bits with 0s

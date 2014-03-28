@@ -946,7 +946,7 @@ void short_msg_pending::write_cdr(SubscriberRegistry& hlr) const
 	time_t now = time(NULL);  // Need real time for CDR
 
 	if (gCDRFile) {
-		char * user = hlr.getIMSI(from); // I am not a fan of this hlr call here. Probably a decent performance hit...
+		char * user = hlr.getIMSI2(from); // I am not a fan of this hlr call here. Probably a decent performance hit...
 		// source, sourceIMSI, dest, date
 		fprintf(gCDRFile,"%s,%s,%s,%s", from, user, dest, ctime(&now));
 		fflush(gCDRFile);
@@ -1864,57 +1864,26 @@ bool SMq::handle_short_code(const short_code_map_t &short_code_map,
 } // SMq::handle_short_code
 
 
-/* Change the From address to a valid phone number in + countrycode phonenum
-   format.  Also add a Via: line about us.  */
+/* Change the From address imsi to a valid phone number in + countrycode phonenum
+   format.  Also add a Via: line about us.
+   From address can contain imsi or phone number   ????
+   fromusername contains imsi
+*/
 enum sm_state
 SMq::lookup_from_address (short_msg_pending *qmsg)
 {
 	char *host = qmsg->parsed->from->url->host;
-	bool got_phone = false;
+	bool got_phone = false;  // Never updated
 
 	char *scheme = qmsg->parsed->from->url->scheme;
 	if (!scheme) { LOG(ERR) << "no scheme";  return NO_STATE; }
 	if (0 != strcmp("sip", scheme)) { LOG(ERR) << "scheme != sip"; return NO_STATE; }
 
-	char *username = qmsg->parsed->from->url->username;
-	if (!username) { LOG(ERR) << "no username"; return NO_STATE; }
+	// Get from user name
+	char *fromusername = qmsg->parsed->from->url->username;
+	if (!fromusername) { LOG(ERR) << "No from user name"; return NO_STATE; }
 	
 	if (!host) { LOG(ERR) << "no hostname"; return NO_STATE; }
-
-	/* disabled by Kurtis, as the sender's hostname is no way to 
-	   determine if it's a phone number or not */
-	/*
-	if (0 != strcmp("127.0.0.1", host)
- 	 && 0 != strcmp("localhost", host)
- 	 && 0 != strcmp(my_ipaddress.c_str(), host)
- 	 && 0 != strcmp(my_2nd_ipaddress.c_str(), host)) {
-		// This isn't a phone number.
-		//
-		// There's a bizarre convention to move the email address
-		// into the message text, followed by a space... GSM 03.40 sec 3.8
-		ostringstream newtext;
-		osip_body_t *bod1;
-
-		if (qmsg->parsed->bodies.nb_elt == 1) {
-			bod1 = (osip_body_t *)qmsg->parsed->bodies.node->element;
-		} else {
-			LOG(ERR) << "Message has no text!";
-			return NO_STATE;		// Punt on msg w/no text
-		}
-		newtext << qmsg->parsed->from->url->username << "@" 
-			<< host << " " << qmsg->get_text();
-		osip_free(bod1->body);
-		bod1->body = osip_strdup(newtext.str().c_str());
-		bod1->length = strlen(bod1->body);
-
-		// Change From address to a local shortcode
-		osip_free(qmsg->parsed->from->url->username);
-		osip_free(qmsg->parsed->from->url->host);
-		qmsg->parsed->from->url->username = osip_strdup ("211");
-		qmsg->parsed->from->url->host = osip_strdup (my_ipaddress.c_str());
-		got_phone = true;
-	}
-	*/
 
 	// Insert a Via: line describing us, this makes us easier to trace,
 	// and also allows a remote SIP agent to reply to us.  (Maybe?)
@@ -1931,9 +1900,10 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 	via_set_port(via, osip_strdup(my_udp_port.c_str()));
 
 	/* Username can be in various formats.  Check for formats that
-	   we know about.  Anything else we punt.  */
+	   we know about.  Anything else we punt.
+	   This can be phone number or IMSI */
 	/* TODO: Check for tel BM2011 */
-	if (got_phone || username[0] == '+' || isdigit(username[0])) {
+	if (got_phone || fromusername[0] == '+' || isdigit(fromusername[0])) {
 		/* We have a phone number.  This is what we want.
 		   So we're done, and can move on to the next part
 		   of processing the short_msg. */
@@ -1941,15 +1911,16 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 	}
 
 	/* If we have "imsi" on the front, strip it.  */
-	char *tryuser = username;
-	if ((username[0] == 'i'||username[0]=='I')
-         && (username[1] == 'm'||username[1]=='M')
-	 && (username[2] == 's'||username[2]=='S')
-	 && (username[3] == 'i'||username[3]=='I')) {
+	char *tryuser = fromusername;
+	if ((fromusername[0] == 'i'||fromusername[0]=='I')
+         && (fromusername[1] == 'm'||fromusername[1]=='M')
+	 && (fromusername[2] == 's'||fromusername[2]=='S')
+	 && (fromusername[3] == 'i'||fromusername[3]=='I')) {
 		tryuser += 4;
 	}
 
 	/* http://en.wikipedia.org/wiki/International_Mobile_Subscriber_Identity */
+	/* IMSI length check */
 	size_t len = strlen (tryuser);
         if (len != 15 && len != 14) {
 		LOG(ERR) << "Message does not have a valid IMSI!";
@@ -1960,13 +1931,13 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 	/* Look up the IMSI in the Home Location Register. */
 	char *newfrom;
 
-	newfrom = my_hlr.getCLIDLocal(username);
+	newfrom = my_hlr.getCLIDLocal(fromusername);
 	if (!newfrom) {
 		/* ==================FIXME KLUDGE====================
 		 * Here is our fake table of IMSIs and phone numbers
 		 * ==================FIXME KLUDGE==================== */
 		for (int i = 0; imsi_phone[i].imsi[0]; i++) {
-			if (0 == strcmp(imsi_phone[i].imsi, username)) {
+			if (0 == strcmp(imsi_phone[i].imsi, fromusername)) {
 				newfrom = strdup(imsi_phone[i].phone);
 				break;
 			}
@@ -1974,7 +1945,7 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 	}
 
 	if (!newfrom) {
-		LOG(NOTICE) << "Lookup IMSI <" << username
+		LOG(NOTICE) << "Lookup IMSI <" << fromusername
 		     << "> to phonenum failed.";
 		LOG(DEBUG) << qmsg->text;
 		//return bounce_message (qmsg,
@@ -2011,7 +1982,7 @@ bool SMq::to_is_deliverable(const char *to)
 	
 	isDeliverable = (short_code_map.find(to) != short_code_map.end());
 	if (!isDeliverable) {
-		char *newdest = my_hlr.getIMSI(to);
+		char *newdest = my_hlr.getIMSI2(to);
 	
 		if (newdest
 	 	    && 0 != strncmp("imsi", newdest, 4) 
@@ -2058,7 +2029,10 @@ SMq::convert_content_type(short_msg_pending *message, short_msg::ContentType to_
 	return true;
 }
 
-/* Change the Request-URI's address to a valid IMSI.  */
+/*
+ * Change the Request-URI's/phone number to a valid IMSI.
+ *
+ */
 enum sm_state
 SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 {
@@ -2089,7 +2063,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 				   && 0 != strncmp("IMSI", username, 4))) {
 		// We have a phone number.  It needs translation.
 
-		char *newdest = my_hlr.getIMSI(username);
+		char *newdest = my_hlr.getIMSI2(username);  // Get IMSI from phone number
 		if (!newdest) {
 			/* ==================FIXME KLUDGE====================
 `				 * Here is our fake table of IMSIs and phone numbers

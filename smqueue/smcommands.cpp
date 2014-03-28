@@ -335,7 +335,7 @@ shortcode_register (const char *imsi, const char *msgtext,
 			       << gConfig.getStr("SC.Register.Msg.AlreadyB").c_str(); 
 		}
 	} else {
-		existing = smq->my_hlr.getIMSI(phonenum);
+		existing = smq->my_hlr.getIMSI2(phonenum);
 		if (existing) {
 			LOG(DEBUG) << phonenum << " is already in the HLR";
 			answer << gConfig.getStr("SC.Register.Msg.TakenA").c_str()

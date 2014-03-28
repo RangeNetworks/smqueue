@@ -21,7 +21,7 @@
 
 #include "GSML3Message.h"
 #include <iostream>
-
+#include <Logger.h>
 
 namespace GSM {
 
@@ -65,6 +65,7 @@ std::ostream& operator<<(std::ostream&, const L3BCDDigits&);
 
 
 /** Calling Party BCD Number, GSM 04.08 10.5.4.9 */
+// (pat) 24.018 10.5.4.9 quote: "This IE is not used in the MS to network direction."
 class L3CallingPartyBCDNumber : public L3ProtocolElement {
 
 private:
@@ -89,10 +90,20 @@ public:
 		mHaveOctet3a(false)
 	{ }
 
-	L3CallingPartyBCDNumber( const char * wDigits )
-		:mType(NationalNumber),mPlan(E164Plan),mDigits(wDigits),
+	L3CallingPartyBCDNumber( const char * wDigits)
+		:mPlan(E164Plan), mDigits(wDigits),
 		mHaveOctet3a(false)
-	{ }
+	{
+		mType = (wDigits[0] == '+') ?  InternationalNumber : NationalNumber;
+		LOG(DEBUG) << "L3CallingPartyBCDNumber ctor type=" << mType << " Digits " << wDigits;
+	}
+
+	L3CallingPartyBCDNumber(const L3CallingPartyBCDNumber &other)
+		:mType(other.mType),mPlan(other.mPlan),mDigits(other.mDigits),
+		mHaveOctet3a(other.mHaveOctet3a),
+		mPresentationIndicator(other.mPresentationIndicator),
+		mScreeningIndicator(other.mScreeningIndicator)
+	{}
 
 
 	NumberingPlan plan() const { return mPlan; }
@@ -125,11 +136,23 @@ public:
 	{ }
 
 	L3CalledPartyBCDNumber(const char * wDigits)
-		:mType(NationalNumber),mPlan(E164Plan),mDigits(wDigits)
+		:mPlan(E164Plan), mDigits(wDigits)
+	{
+		mType = (wDigits[0] == '+') ?  GSM::InternationalNumber : GSM::NationalNumber;
+		//LOG(DEBUG) << "L3CallingPartyBCDNumber ctor type=" << mType << " Digits " << wDigits;
+	}
+
+	// (pat) This auto-conversion from CallingParty to CalledParty was used in the SMS code,
+	// however, it was creating a disaster during unintended auto-conversions of L3Messages,
+	// which are unintentionally sprinkled throughout the code base due to incomplete constructors.
+	// The fix would be to add 'explicit' keywords everywhere.
+	explicit L3CalledPartyBCDNumber(const L3CallingPartyBCDNumber& other)
+		:mType(other.type()),mPlan(other.plan()),mDigits(other.digits())
 	{ }
 
-	L3CalledPartyBCDNumber(const L3CallingPartyBCDNumber& other)
-		:mType(other.type()),mPlan(other.plan()),mDigits(other.digits())
+	// (pat) We must have this constructor as a choice also.
+	L3CalledPartyBCDNumber(const L3CalledPartyBCDNumber& other)
+		:mType(other.mType),mPlan(other.mPlan),mDigits(other.mDigits)
 	{ }
 
 

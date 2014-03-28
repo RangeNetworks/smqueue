@@ -91,7 +91,7 @@ RPData *SMS::hex2rpdata(const char *hexstring)
 
 	BitVector RPDUbits(strlen(hexstring)*4);
 	if (!RPDUbits.unhex(hexstring)) {
-		return false;
+		return NULL;
 	}
 	LOG(DEBUG) << "SMS RPDU bits: " << RPDUbits;
 
@@ -291,6 +291,7 @@ void RPData::parseBody(const RLFrame& src, size_t &rp)
 	mOriginator.parseLV(src,rp);
 	mDestination.parseLV(src,rp);
 	mUserData.parseLV(src,rp);
+	//LOG(DEBUG) << "parseBody orig=" << mOriginator << " dest=" << mDestination;
 }
 
 
@@ -299,6 +300,7 @@ void RPData::writeBody(RLFrame& dest, size_t& wp) const
 	// GSM 04.11 7.3.1.1
 	// This is the downlink form.
 	mOriginator.writeLV(dest,wp);
+	//LOG(DEBUG) << "writeBody orig=" << mOriginator << " dest=" << mDestination;
 	mDestination.writeLV(dest,wp);
 	mUserData.writeLV(dest,wp);
 }
@@ -378,7 +380,8 @@ void TLAddress::parse(const TLFrame& src, size_t& rp)
 	if (src.readField(rp, 1) != 1) SMS_READ_ERROR;	
 	mType = (TypeOfNumber)src.readField(rp, 3);
 	mPlan = (NumberingPlan)src.readField(rp, 4);
-	mDigits.parse(src,rp,length);
+	//LOG(DEBUG) << "parse mType " << mType;
+	mDigits.parse(src,rp,length, mType == InternationalNumber);
 }
 
 
@@ -724,6 +727,7 @@ void TLSubmit::parseBody(const TLFrame& src, size_t& rp)
 	parseSRR(src);
 	mMR = src.readField(rp,8);
 	mDA.parse(src,rp);
+	//LOG(DEBUG) << "Destination " << mDA.digits();
 	mPI = src.readField(rp,8);
 	mDCS = src.readField(rp,8);
 	mVP.VPF(mVPF);
@@ -758,18 +762,19 @@ size_t TLDeliver::l2BodyLength() const
 }
 
 
+// (pat) See 3GPP 3.40 9.2.2
 void TLDeliver::writeBody(TLFrame& dest, size_t& wp) const
 {
-	writeMMS(dest);
-	writeRP(dest);
-	writeUDHI(dest, mUD.UDHI());
-	writeSRI(dest);
-	mOA.write(dest,wp);
-	dest.writeField(wp,mPID,8);
-	dest.writeField(wp,mUD.DCS(),8);
-	mSCTS.write(dest,wp);
-	writeUnused(dest);
-	mUD.write(dest,wp);
+	writeMMS(dest);		// more messages to send bit.
+	writeRP(dest);		// reply path bit.
+	writeUDHI(dest, mUD.UDHI());	// User-data-header-indicator bit
+	writeSRI(dest);		// status-report-indication bit
+	mOA.write(dest,wp);	// originating address
+	dest.writeField(wp,mPID,8);		// protocol id
+	dest.writeField(wp,mUD.DCS(),8);	// Data-coding-scheme
+	mSCTS.write(dest,wp);		// service-centre-time-stamp
+	writeUnused(dest);			// user-data-length.  (pat) Why empty?
+	mUD.write(dest,wp);			// user data.
 }
 
 

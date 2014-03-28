@@ -304,7 +304,7 @@ short_code_action submitSMS(const char *imsi, const TLSubmit& submit,
 	}
 //#endif
 
-	char* destinationNumber = scp->scp_smq->my_hlr.getIMSI(address.digits());
+	char* destinationNumber = scp->scp_smq->my_hlr.getIMSI2(address.digits());
 
 	// Send to smqueue or HTTP gateway, depending on what's defined in the config.
 	// And whether of not we can resolve the destination, and a global relay does not exist,

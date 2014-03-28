@@ -53,13 +53,17 @@ static int encode(char c, bool *invalid)
 	return 0;	// Not sure what to do.
 }
 
-
+/*
+ * If digit string starts with a plus strip off the plus. I suspect that this get encoded as an international type somewhere else
+ * The write function send digits/information and the parse function decodes and store digits/incomming information. SVG
+ */
 void L3BCDDigits::write(L3Frame& dest, size_t &wp) const
 {
 	bool invalid = false;
 	unsigned index = 0;
 	unsigned numDigits = strlen(mDigits);
 	if (index < numDigits && mDigits[index] == '+') {
+		//LOG(DEBUG) << "write got +";
 		index++;
 	}
 	while (index < numDigits) {
@@ -92,7 +96,7 @@ ostream& GSM::operator<<(ostream& os, const L3BCDDigits& digits)
 void L3CalledPartyBCDNumber::writeV( L3Frame &dest, size_t &wp ) const
 {
 	dest.writeField(wp, 0x01, 1);
-	LOG(DEBUG) << "writeV mType" << mType;
+	LOG(DEBUG) << "writeV mType " << mType << " first digit " << *digits();
 	dest.writeField(wp, mType, 3);
 	dest.writeField(wp, mPlan, 4);
 	mDigits.write(dest,wp);
@@ -104,7 +108,7 @@ void L3CalledPartyBCDNumber::parseV( const L3Frame &src, size_t &rp, size_t expe
 	// ext bit must be 1
 	if (src.readField(rp, 1) != 1) L3_READ_ERROR;	
 	mType = (TypeOfNumber)src.readField(rp, 3);
-	LOG(DEBUG) << "parseV Mtype " << mType;
+	//LOG(DEBUG) << "parseV mType " << mType;
 	mPlan = (NumberingPlan)src.readField(rp, 4);
 	mDigits.parse(src,rp,expectedLength-1, mType == InternationalNumber);
 }
@@ -129,7 +133,7 @@ void L3CallingPartyBCDNumber::writeV( L3Frame &dest, size_t &wp ) const
 {
 	// If Octet3a is extended, then write 0 else 1.
 	dest.writeField(wp, (!mHaveOctet3a & 0x01), 1);
-	LOG(DEBUG) << "writeV mType" << mType;
+	LOG(DEBUG) << "writeV mType " << mType << " first digit " << *digits();
 	dest.writeField(wp, mType, 3);
 	dest.writeField(wp, mPlan, 4);
 
@@ -155,7 +159,7 @@ void L3CallingPartyBCDNumber::parseV( const L3Frame &src, size_t &rp, size_t exp
 	// Read out first bit = 1.
 	mHaveOctet3a = !src.readField(rp, 1);	// Bit is reversed 0 means you have an octet
 	mType = (TypeOfNumber)src.readField(rp, 3);
-	LOG(DEBUG) << "parseV mType" << mType;
+	// LOG(DEBUG) << "parseV mType " << mType;
 	mPlan = (NumberingPlan)src.readField(rp, 4);
 	remainingLength -= 1;
 
