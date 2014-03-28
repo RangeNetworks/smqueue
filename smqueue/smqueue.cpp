@@ -580,7 +580,7 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 			user = p->req_uri->username;
 			if (!user)
 				return 484;
-			if (!check_to_user(user))
+			if (!check_to_user(user))  // Check user does nothing
 				return 484;
 			// FIXME, URL versus To: might have different username
 			// requirements?
@@ -2004,7 +2004,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 		char *newdest = my_hlr.getIMSI(username);
 		if (!newdest) {
 			/* ==================FIXME KLUDGE====================
-			 * Here is our fake table of IMSIs and phone numbers
+`				 * Here is our fake table of IMSIs and phone numbers
 			 * ==================FIXME KLUDGE==================== */
 			for (int i = 0; imsi_phone[i].phone[0]; i++) {
 				if (0 == strcmp(imsi_phone[i].phone, username)) {
@@ -2026,7 +2026,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 		if (!newdest) {
 			/* Didn't find it in HLR or fake table.  Bitch. */
 			// We have to return an error to the originator.
-			LOG(NOTICE) << "Lookup phonenum '" << username << "' to IMSI failed.";
+			LOG(NOTICE) << "Lookup phonenum '" << username << "' to IMSI failed";
 			LOG(DEBUG) << "MSG = " << qmsg->text;
 
 		    if (global_relay.c_str()[0] == '\0') {
@@ -2387,7 +2387,7 @@ void SMq::main_loop(int msTMO)
 
 		smpl = new short_msg_p_list(1);
 		smp = &*smpl->begin();	// Here's our short_msg_pending!
-		smp->initialize (len, buffer, false);
+		smp->initialize (len, buffer, false);  // Just makes a copy
 		smp->ms_to_sc = true;
 		//LOG(DEBUG) << "Before insert new message smpl size " << smpl->size();
 
@@ -2405,13 +2405,14 @@ void SMq::main_loop(int msTMO)
 				     << smp->qtag << "' from "
 				     << smp->parsed->from->url->username 
 				     << " for "
-				     << smp->parsed->req_uri->username
+				     << smp->parsed->req_uri->username  // just shows smsc
 				     << ".";
 			} else {
 				LOG(INFO) << "Got SMS "
 				     << smp->parsed->status_code
 				     << " Response qtag '"
-				     << smp->qtag << "'.";
+				     << smp->qtag <<  " for "
+				     << smp->parsed->req_uri->username;  // Name that was sent to smqueue
 			}
 
 // **********************************************************************

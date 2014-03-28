@@ -251,6 +251,8 @@ shortcode_zap_queued (const char *imsi, const char *msgtext,
  *
  * This shortcode message can be processed several times, if we need
  * to do retries because of locked files, for example.
+ *
+ * Will add number into the HLR with a plus at the beginning if it exists
  */
 enum short_code_action
 shortcode_register (const char *imsi, const char *msgtext,
@@ -314,7 +316,7 @@ shortcode_register (const char *imsi, const char *msgtext,
 		}
 	}
    }
-
+   LOG(DEBUG) << "Register IMSI:" << imsi << " phonenum:" << phonenum;
    if (!badnum) {
 
 	existing = smq->my_hlr.getCLIDLocal(imsi);
@@ -343,6 +345,7 @@ shortcode_register (const char *imsi, const char *msgtext,
 			LOG(DEBUG) << phonenum << " is not in the HLR";
 			// Neither the IMSI nor the phonenum is in use.
 			// Book 'em, danno!
+
 			did = smq->my_hlr.addUser(imsi, phonenum);
 			switch (did) {
 			case SubscriberRegistry::SUCCESS:
