@@ -239,8 +239,6 @@ read_short_msg_from_file(char *file);
  * Utility functions
  */
 
-void
-SMqueue::abfuckingort() { (*(char *)0) = 127; }   // where is the real one??
 
 // C++ wants you to use <string>.  Fuck that.  When we want dynamically
 // allocated char *'s, then we'll use them.  strdup uses malloc, tho, so
@@ -501,6 +499,10 @@ static bool relaxed_verify_relay(osip_list_t *vias, const char *host, const char
  * If we reject a message, return the SIP response code that we should
  * return to the sender, diagnosing the problem.  If the message is OK,
  * result is zero.
+ * Return
+ * 	0 Is okay
+ * 	Error code if failed
+ *
  */
 int
 short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
@@ -529,7 +531,7 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 	   structure and contents.  */
 
 	p = parsed;
-	if (!p) {			// this should really be an abort.
+	if (!p) {
 		LOG(DEBUG) << "Parse is NULL";
 		return 400;
 	}
@@ -567,16 +569,23 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 		}
 	} else {
 		// It's a message.
-		if (!p->req_uri || !p->req_uri->scheme)
+		if (!p->req_uri || !p->req_uri->scheme) {
+			LOG(DEBUG) << "No scheme or uri";
 			return 400;
-		if (0 != strcmp("sip", p->req_uri->scheme))
+		}
+		if (0 != strcmp("sip", p->req_uri->scheme)) {
+			LOG(DEBUG) << "Not SIP scheme";
 			return 416;
-		if (!check_host_port(p->req_uri->host,p->req_uri->port))
+		}
+		if (!check_host_port(p->req_uri->host,p->req_uri->port)) {
+			LOG(DEBUG) << "Host port check failed";
 			return 484;
-		if (!p->sip_method)
+		}
+		if (!p->sip_method) {
+			LOG(DEBUG) << "SIP method not set";
 			return 405;
-
-		if (   0 == strcmp("MESSAGE", p->sip_method)) {
+		}
+		if (0 == strcmp("MESSAGE", p->sip_method)) {
 			user = p->req_uri->username;
 			if (!user)
 				return 484;
@@ -593,18 +602,21 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 			        ||(0 == strcmp("application", p->content_type->type)
 			          && 0 == strcmp("vnd.3gpp.sms", p->content_type->subtype))
 					  )
-			    )
+			    ) {
+				LOG(DEBUG) << "Content type not supported";
 				return 415;
-
+			}
 			if (p->bodies.nb_elt != 1 || !p->bodies.node
 			    || 0 != p->bodies.node->next
 			    || !p->bodies.node->element
-			    || false) // ...
+			    || false) { // .
+				LOG(DEBUG) << "Message entity-body too large";
 				return 413;	// "Request entity-body too large"
+			}
 			if (!p->cseq || !p->cseq->method
 			    || 0 != strcmp("MESSAGE", p->cseq->method)
 			    || !p->cseq->number) {  // FIXME, validate number??
-				LOG(DEBUG) << "Invalid";
+				LOG(DEBUG) << "Invalid sequence number";
 				return 400;
 			}
 
@@ -626,6 +638,7 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 			}
 
 		} else {
+			LOG(DEBUG) << "Unknown SIP datagram";
 			return 405;	// Unknown SIP datagram type
 		}
 	}
@@ -647,8 +660,10 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 	if (p->content_length && p->content_length->value) {
 		errno = 0;
 		clen = strtol(p->content_length->value, &endptr, 10);
-		if (*endptr != '\0' || errno != 0)  // Errs or trailing crud?
+		if (*endptr != '\0' || errno != 0) {  // Errs or trailing crud?
+			LOG(DEBUG) << "Invalid data in message";
 			return 413;
+		}
 	}
 	// clen is now the numeric content_length.
 	// FIXME where is the message body??
@@ -657,35 +672,50 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 
 	// error_infos - no restrictions
 
-	// From: needs an extra element which is a message tag?  FIXME if wrong
-	// (pat 7-23-2013) The opposite is true: A sip MESSAGE must not have tags in the from and To lines because it is not an INVITE.
-	// However, we should not throw an error for existence or non-existence of the tags; the best recovery would be
-	// to simply ignore this as an error and return the tag in the reply to the MESSAGE if the tag exists.
+	// From address needs to exist but a tag in the from address is optional
 	if (!p->from || !p->from->url
-	    || p->from->gen_params.nb_elt < 1
-	    || !p->from->gen_params.node) {
-		LOG(DEBUG) << "Invalid From header";
+	    //|| p->from->gen_params.nb_elt < 1  // Message tag is not required
+	    //|| !p->from->gen_params.node		 // Message tag is not required SVG 03/12/14
+			)
+	{
+		LOG(DEBUG) << "Invalid from address in header from " << p->from << " fromurl " << p->from->url
+				   << " nb.elt " << p->from->gen_params.nb_elt << " params.node " << p->from->gen_params.node;
 		return 400;
 	}
-	plist = (__node_t *) p->from->gen_params.node;
+
 	fromtag = NULL;
-	do {
-		param = (osip_generic_param_t *) plist->element;
-  		LOG(DEBUG) << "Param " << param->gname << "=" << param->gvalue;
-		if (!strcmp("tag", param->gname))
-			fromtag = param->gvalue;
-		plist = (__node_t *)plist->next;
-	} while (plist);
-	if (!fromtag) {
-		LOG(DEBUG) << "No From tag";
-		return 400;
+	plist = (__node_t *) p->from->gen_params.node;
+	if (plist) {
+		do {
+			param = (osip_generic_param_t *) plist->element;
+			if (param) {
+				LOG(DEBUG) << "Param " << param->gname << "=" << param->gvalue;
+				if (!strcmp("tag", param->gname)) {
+					LOG(DEBUG) << "Got from tag";
+					fromtag = param->gvalue;
+					break;  // Only need one
+				}
+				plist = (__node_t *)plist->next;
+			} else {
+				LOG(DEBUG) << "No element in list";  // This is valid
+				break;
+			}
+		} while (plist); // while
+		if (!fromtag) {
+			LOG(DEBUG) << "No from tag";  // This is valid
+		}
 	}
-	
+	else {
+		LOG(DEBUG) << "No node list element";  // Will not cause a problem. Not sure is this is normal
+	}
+
 	if (!p->mime_version) {
 		;					// No mime version, OK
 	} else if (!p->mime_version->value		// Version 1.0 is OK.
-		   || 0 != strcmp("1.0", p->mime_version->value))
+		   || 0 != strcmp("1.0", p->mime_version->value)) {
+		LOG(DEBUG) << "Wrong mime version";
 		return 415;				// Any other is NOPE.
+	}
 	// proxy_authenticates - no restrictions
 	// proxy_authentication_infos -- no restriction
 	// record_routes -- no restriction
@@ -697,10 +727,11 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 	    || !check_host_port(p->to->url->host, p->to->url->port)
 	    || !p->to->url->username
 #if 0
-    // Asterisk returns a tag on the To: line of its SIP REGISTER
-    // responses.  This violates the RFC but we'd better allow it.
-    // (We don't really care -- we just ignore it anyway.)
-	    || p->to->gen_params.nb_elt != 0
+		// Asterisk returns a tag on the To: line of its SIP REGISTER
+		// responses.  This violates the RFC but we'd better allow it.
+		// (We don't really care -- we just ignore it anyway.)
+		// A from tag is not required
+		// || p->to->gen_params.nb_elt != 0
 #endif
                     ) {	// no tag field allowed; see
 		LOG(DEBUG) << "Invalid To header";	// RFC 3261 sec 8.1.1.2
@@ -720,8 +751,10 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 		 relaxed_verify_relay(&p->vias, manager->global_relay.c_str(), manager->global_relay_port.c_str())
 		))) {
 		// We cannot deliver the message since we cannot resolve the TO
-		if (!manager->to_is_deliverable(user))
+		if (!manager->to_is_deliverable(user)) {
+			LOG(DEBUG) << "To address not deliverable";
 			return 404;
+		}
 		// We need to reject the message, because we cannot resolve the FROM
 		// TODO: Don't do this. From coming in through the relay is probably not resolvable.
 		/*if (!manager->from_is_deliverable(p->from->url->username))
@@ -765,34 +798,63 @@ short_msg_pending::set_qtag()
 	__node_t *plist;
 	osip_generic_param_t *param;
 	char *fromtag;
+	int error;
 
+	LOG(DEBUG) << "Enter parse";  //SVGDBG
 	if (!parsed_is_valid) {
 		if (!parse()) {
-			return 400;
+			LOG(DEBUG) << "Parse failed in setqtag";
+		return 400;
 		}
 	}
 	p = parsed;
 
-	if (!p->from)
+	if (!p->from) {
+		LOG(DEBUG) << "No from address in setqtag";
 		return 400;
+	}
 	plist = (__node_t *) p->from->gen_params.node;
-	if (!plist)
+	if (!plist) {
+		LOG(DEBUG) << "No node in param list";
 		return 400;
-	fromtag = NULL;
-	do {
-		param = (osip_generic_param_t *) plist->element;
-  		LOG(DEBUG) << "Param " << param->gname << "=" << param->gvalue;
-		if (!strcmp("tag", param->gname))
-			fromtag = param->gvalue;
-		plist = (__node_t *)plist->next;
-	} while (plist);
-	if (!fromtag)
-		return 400;
+	}
 
-	if (!p->call_id)
+	// Handle from tag which is optional
+	fromtag = NULL;
+	plist = (__node_t *) p->from->gen_params.node;
+	if (plist) {
+		do {
+			param = (osip_generic_param_t *) plist->element;
+			if (param) {
+				LOG(DEBUG) << "Param " << param->gname << "=" << param->gvalue;
+				if (!strcmp("tag", param->gname)) {
+					LOG(DEBUG) << "Got from tag";
+					fromtag = param->gvalue;
+					break;  // Only need one
+				}
+				plist = (__node_t *)plist->next;
+			} else {
+				LOG(DEBUG) << "No element in list";  // This is valid
+				break;
+			}
+		} while (plist); // while
+		if (!fromtag) {
+			LOG(DEBUG) << "No from tag";  // This is valid
+		}
+	}
+	else {
+		LOG(DEBUG) << "No node list element";  // Will not cause a problem. Not sure is this is normal
+	}
+
+	if (!p->call_id) {
+		LOG(DEBUG) << "No callID";
 		return 401;
-	if (!p->cseq)
+	}
+
+	if (!p->cseq) {
+		LOG(DEBUG) << "No sequence number";
 		return 402;
+	}
 
 	delete [] qtag;		// slag the old one, if any.
 
@@ -815,8 +877,10 @@ short_msg_pending::set_qtag()
 	strcat(qtag, fromtag);
 	// Check the length calculation, abort if bad.
 	if (qtag[len-1] != '\0'
-	 || qtag[len-2] == '\0')
-		abfuckingort();
+	 || qtag[len-2] == '\0') {
+		LOG(DEBUG) << "qtag length check failed"; // Not sure why this is being done svg
+		return 400;
+	}
 
 	// Set the taghash too.
 	// FIXME, if we set this with a good hash function,
@@ -1223,6 +1287,9 @@ SMq::get_link(short_msg_p_list::iterator &oldmsg,
  * Method is which type of SIP packet (MESSAGE, RESPONSE, etc).
  * Result is a short_msg_p_list containing one short_msg_pending, with
  * the half-initialized message in it.
+ * Return
+ * 	0 = Failure  need to delete message
+ * 	okay = msg_p_list
  */
 short_msg_p_list *
 SMq::originate_half_sm(string method)
@@ -1258,7 +1325,8 @@ SMq::originate_half_sm(string method)
 			char *my_callid;
 			if (osip_call_id_to_str (response->parsed->call_id,
 			                          &my_callid)) {
-				abfuckingort();
+				LOG(DEBUG) << "Parse call ID failed can't continue"; // Can't continue
+				return NULL;
 			}
 			register_call_id = string(my_callid);
 			osip_free (my_callid);
@@ -1313,6 +1381,9 @@ SMq::originate_half_sm(string method)
  *            or REQUEST_DESTINATION_SIPURL if to is an IMSI already.
  * Result is 0 for success, negative for error.
  * svgfix where is length of msgtext defined
+ * Return
+ *   0 = valid
+ *   -1 failure is returned
  */
 int
 SMq::originate_sm(const char *from, const char *to, const char *msgtext,
@@ -1323,6 +1394,10 @@ SMq::originate_sm(const char *from, const char *to, const char *msgtext,
 	int errcode;
 
 	smpl = originate_half_sm("MESSAGE");
+	if (smpl == NULL) {
+		return -1;  // Returning -1 for error
+	}
+
 	response = &*smpl->begin();	// Here's our short_msg_pending!
 
 	// Plain text SIP MESSAGE should be repacked before delivery
@@ -1363,12 +1438,15 @@ SMq::originate_sm(const char *from, const char *to, const char *msgtext,
 	response->unparse();
 	
 	errcode = response->validate_short_msg(this, false);
-	if (!errcode) {
+	if (errcode == 0) {
 		insert_new_message (*smpl, firststate); // originate_sm
+	}
+	else {
+		LOG(DEBUG) << "Short message validate failed, error " << errcode;
 	}
 
 	delete smpl;
-	return errcode? -1: 0;
+	return errcode ? -1 : 0;
 }
 
 
@@ -1406,7 +1484,7 @@ void SMq::InitInsideReaderLoop() {
 
     savefile = gConfig.getStr("savefile").c_str();
 
-    // Took out code that read file in on each timeout svg
+    // Took out code that dumped queue file on each timeout svg
     // smq.debug_dump();
 
 } // InitInsideReaderLoop
@@ -1479,9 +1557,10 @@ SMq::bounce_message(short_msg_pending *sent_msg, const char *errstr)
 			                     REQUEST_DESTINATION_IMSI); // dest is phonenum
 	}
 	if (status == 0) {
+		// Message is okay
 	    return DELETE_ME_STATE;
 	} else {
-	    LOG(ERR) << "status should be 0, instead it is " << status;
+	    LOG(ERR) << "Error status should be 0, instead it is " << status;
 	    return NO_STATE;	// Punt to debug.
 	}
 }
@@ -1592,7 +1671,11 @@ SMq::ready_to_register (short_msg_p_list::iterator qmsg)
  * We register "IMSI@HLRhost:HLRport" at the sip uri:
  *             "IMSI@cellhost:cellport".
  *
- * Puts a message in the queue
+ * Puts a message in the queue on success
+ * Return
+ * 	Next state DELETE_ME_STATE on failure
+
+ *
  */
 enum sm_state
 SMq::register_handset(short_msg_p_list::iterator qmsg)
@@ -1605,6 +1688,9 @@ SMq::register_handset(short_msg_p_list::iterator qmsg)
 	LOG(DEBUG) << "Send register handset message";
 
 	smpl = originate_half_sm("REGISTER");
+	if (smpl == NULL) {
+		return DELETE_ME_STATE;  // Returning DELETE_ME_STATE will make sure message gets deleted
+	}
 	response = &*smpl->begin();	// Here's our short_msg_pending!
 
 	// SIP REGISTER should not be repacked before delivery
@@ -1652,13 +1738,15 @@ SMq::register_handset(short_msg_p_list::iterator qmsg)
 	response->unparse();
 	
 	errcode = response->validate_short_msg(this, false);
-	if (errcode) {
-		abfuckingort();		// Our msg should be valid
+	if (errcode != 0) {
+		LOG(DEBUG) << "Register handset short message failed validation "  << errcode;
+		delete smpl;
+		return DELETE_ME_STATE;
 	}
 
 	// Pop new SIP REGISTER out of the smpl queue-of-one and
 	// into the real queue, where it will very soon be delivered.
-	insert_new_message (*smpl, REQUEST_MSG_DELIVERY); // register_handset
+	insert_new_message (*smpl, REQUEST_MSG_DELIVERY); // In register_handset
 	// We can't reference response, or *smpl, any more...
 
 	delete smpl;
@@ -2137,9 +2225,12 @@ SMq::respond_sip_ack(int errcode, SMqueue::short_msg_pending *smp,
 
 	LOG(DEBUG) << "Send SIP ACK message";
 
-	if (!smp->parse())
-		return;		// Don't ack invalid SIP messages.
+	if (!smp->parse()) {
+		LOG(DEBUG) << "Short message parse failed";
+		return;		// Don't ack invalid SIP messages
+	}
 
+	LOG(DEBUG) << "Short message parse returned success";  // SVGDBG
 	if (MSG_IS_RESPONSE(smp->parsed)) {
 		LOG(DEBUG) << "Ignore response message";
 		return;		// Don't ack a response message, or we loop!
@@ -2405,36 +2496,34 @@ void SMq::main_loop(int msTMO)
 				     << smp->qtag << "' from "
 				     << smp->parsed->from->url->username 
 				     << " for "
-				     << smp->parsed->req_uri->username  // just shows smsc
+				     << (smp->parsed->req_uri ? smp->parsed->req_uri->username : "")  // just shows smsc
 				     << ".";
 			} else {
 				LOG(INFO) << "Got SMS "
 				     << smp->parsed->status_code
 				     << " Response qtag '"
 				     << smp->qtag <<  " for "
-				     << smp->parsed->req_uri->username;  // Name that was sent to smqueue
+				     << (smp->parsed->req_uri ? smp->parsed->req_uri->username : "");  // Name that was sent to smqueue
 			}
 
 // **********************************************************************
 // ****************** Insert a message in the queue *********************
-
 			insert_new_message(*smpl); // Reader thread main_loop
-			errcode = 202;	// Accepted and queued.
+			errcode = 202;
+			// It's OK to reference "smp" here, whether it's in the
+			// smpl list, or has been moved into the main time_sorted_list.
+			queue_respond_sip_ack(errcode, smp, smp->srcaddr, smp->srcaddrlen); // Send respond_sip_ack message to writer thread
 		} else {
-			LOG(WARNING) << "Received bad " << errcode
-			     << " datagram:" << endl
-	                     << "BADMSG = " << smp->text;
+			// Message is bad not inserted in queue
+			LOG(WARNING) << "Received bad message, error " << errcode;
+			queue_respond_sip_ack(errcode, smp, smp->srcaddr, smp->srcaddrlen); // SVG This might need to be removed for failed messages  Investigate
+			// Don't log message data it's invalid and should not be accessed
 		}
-		// It's OK to reference "smp" here, whether it's in the
-		// smpl list, or has been moved into the main time_sorted_list.
-		// delete this line respond_sip_ack(errcode, smp, smp->srcaddr, smp->srcaddrlen); //svgfix
-
-		queue_respond_sip_ack(errcode, smp, smp->srcaddr, smp->srcaddrlen); // Send respond_sip_ack message to writer thread  svgfix
 
 		// We won't leak memory if we didn't queue it up, since
 		// the delete of smpl will delete anything still
 		// in ITS list.
-		delete smpl;  // List entry that go added
+		delete smpl;  // List entry that got added
 	} // got datagram
 
 } // SMq::main_loop
@@ -2525,11 +2614,9 @@ SMq::read_queue_from_file(std::string qfile)
 	if (!ifile.is_open())
 		return false;
 	while (!ifile.eof()) {
-		ifile >> equals >> astate >> atime; //svgfix what is ifstream atime
-		if (equals != "===") {
-			if (ifile.eof())
-				break;
-			abfuckingort();
+		ifile >> equals >> astate >> atime;
+		if ((equals != "===") || (ifile.eof())) {  // === is the beginning of a record
+			break;  // End of file
 		}
 		ifile >> netaddrstr;
 		ifile >> alength;
@@ -2557,9 +2644,10 @@ SMq::read_queue_from_file(std::string qfile)
 		smp->need_repack = need_repack;
 
 		smp->srcaddrlen = 0;
-		if (!my_network.parse_addr(netaddrstr.c_str(), smp->srcaddr, sizeof(smp->srcaddr), &smp->srcaddrlen))
-			abfuckingort();
-
+		if (!my_network.parse_addr(netaddrstr.c_str(), smp->srcaddr, sizeof(smp->srcaddr), &smp->srcaddrlen)) {
+			LOG(DEBUG) << "Parse Network address failed";
+			continue;
+		}
 		errcode = smp->validate_short_msg(this, false);
 		if (errcode == 0) {
 			if (MSG_IS_REQUEST(smp->parsed)) {
@@ -2570,24 +2658,31 @@ SMq::read_queue_from_file(std::string qfile)
 				     << smp->parsed->req_uri->username
 					  << " direction=" << (smp->ms_to_sc?"MS->SC":"SC->MS")
 					  << " need_repack=" << (smp->need_repack?"true":"false");
+				// Fixed error where invalid messages were getting put in the queue
+				insert_new_message (*smpl, mystate, mytime); // In read_queue_from_file
 			} else {
-				LOG(WARNING) << "Read bad SMS "
+				LOG(DEBUG) << "Read bad SMS "
 				     << smp->parsed->status_code
 				     << " Response '"
 				     << smp->qtag << "':" << msgtext;
+				howmanyerrs++;
 			}
-			insert_new_message (*smpl, mystate, mytime); // read_queue_from_file
 		} else {
-			LOG(ERR) << "Read bad " << errcode
-			     << " message:" << endl
-	                     << "BADMSG = " << smp->text;
+			LOG(WARNING) << "Received bad message, error " << errcode;
+			// Don't log message data it's invalid and should not be accessed
 			howmanyerrs++;
+			// Continue to next message
 		}
 		delete smpl;
-	}
+	}  // Message loop
 	LOG(INFO) << "=== Read " << howmany << " messages total, " << howmanyerrs
 	     << " bad ones.";
+
+	// If errors clear file so we don't process again if a restart happens because the file is bad
+	if (howmanyerrs != 0) ifile.clear();
+
 	ifile.close();
+
 	return true;
 } // read_queue_from_file
 
@@ -2734,7 +2829,7 @@ main(int argc, char **argv)
 	SmqMessageHandler::StartThreads();
 
 	// Start tester threads
-	//StartTestThreads();
+	StartTestThreads();  // Disabled in in function StartTestThreads
 
 	// Don't let thread exit
 	while (!smq.stop_main_loop) {

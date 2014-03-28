@@ -274,7 +274,10 @@ class short_msg {
 		}
 	}
 
-	/* Parsing, validating, and unparsing messages.  */
+	/* Parsing, validating, and unparsing messages.
+	 * Return
+	 * 	False if failed
+	*/
 	bool parse() {
 		int i;
 		osip_message_t *sip;
@@ -283,18 +286,32 @@ class short_msg {
 			return true;
 
 		if (!osip_initialized) {
+			LOG(DEBUG) << "Calling osip_init"; // SVGDBG
 			i = osip_init(&osipptr);
-			if (i != 0) return false;
+			if (i != 0) {
+				LOG(DEBUG) << "osip_init failed error " << i;
+				return false;
+			}
 			osip_initialized = true;
 		}
 			
 		unparse();	// Free any previous one.
 
 		// Parse SIP message
+		LOG(DEBUG) << "Calling osip_message_init"; // SVGDBG
 		i = osip_message_init(&sip);
-		if (i != 0) abfuckingort();	/* throw out-of-memory */
+		if (i != 0)  {
+			LOG(DEBUG) << "osip_message_init failed error " << i;
+			return false;
+		}
+
+		LOG(DEBUG) << "Calling osip_message_parse"; // SVGDBG
 		i = osip_message_parse(sip, text, text_length);
-		if (i != 0) return false;
+		if (i != 0) {
+			LOG(DEBUG) << "osip_message_parse failed error " << i;
+			return false;
+		}
+
 		parsed = sip;
 		parsed_is_valid = true;
 		parsed_is_better = false;
@@ -302,22 +319,27 @@ class short_msg {
 		// Now parse SMS if needed
 		if (parsed->content_type == NULL)
 		{
+			LOG(DEBUG) << "SMS content not set continue anyway??";
 			// Most likely this is SIP response.
 			content_type = UNSUPPORTED_CONTENT;
+			// SVGDBG Consider not continuing
 		} else if (  strcmp(parsed->content_type->type, "text") == 0
 		          && strcmp(parsed->content_type->subtype, "plain") == 0)
 		{
 			// If Content-Type is text/plain, then no decoding is needed.
 			content_type = TEXT_PLAIN;
+			LOG(DEBUG) << "SMS message encoded text"; //SVGDBG
 		} else if (  strcmp(parsed->content_type->type, "application") == 0
 		          && strcmp(parsed->content_type->subtype, "vnd.3gpp.sms") == 0)
 		{
 			// This is an encoded SMS' TPDU.
+			LOG(DEBUG) << "SMS message encoded 3GPP"; //SVGDBG
 			content_type = VND_3GPP_SMS;
 
 			// Decode it RP-DATA
 			osip_body_t *bod1 = (osip_body_t *)parsed->bodies.node->element;
 			const char *bods = bod1->body;
+			LOG(DEBUG) << "Calling hex2rpdata"; // SVGDBG
 			rp_data = hex2rpdata(bods);
 			if (rp_data == NULL) {
 				LOG(INFO) << "RP-DATA unpacking failed";
@@ -342,6 +364,7 @@ class short_msg {
 	   so we have to invalidate both of them. */
 	void
 	parsed_was_changed() {
+		LOG(DEBUG) << "Calling osip_message_force_update"; // SVGDBG
 		parsed_is_better = true;
 		osip_message_force_update(parsed);   // Tell osip library too
 	}
@@ -356,12 +379,15 @@ class short_msg {
 			char *dest = NULL;
 			size_t length = 0;
 
-			if (!parsed_is_valid) abfuckingort();
+			if (!parsed_is_valid) {
+				LOG(DEBUG) << "Parsed is not valid";
+				return;
+			}
+
+			LOG(DEBUG) << "Calling osip_message_to_str"; //SVGDBG
 			int i = osip_message_to_str(parsed, &dest, &length);
 			if (i != 0) {
-				std::cerr << "Parsed is better, can't deal"
-					  << std::endl;
-				abfuckingort();
+				LOG(DEBUG) << "osip_message_to_str failed";  // Is this fatal
 			}
 			delete [] text;
 			/* Because "osip_free" != "delete", we have to recopy
@@ -374,8 +400,10 @@ class short_msg {
 			parsed_is_valid = true;
 			parsed_is_better = false;
 		}
-		if (text == NULL)
-			abfuckingort();
+		if (text == NULL) {
+			LOG(DEBUG) << "text is null";
+			return;
+		}
 	}
 
 	/* Free up all memory used by parsed version of message. */
@@ -439,7 +467,7 @@ class short_msg {
 				return decoded_text;
 			}
 			catch (SMSReadError) {
-				//LOG(WARNING) << "SMS parsing failed (above L3)";
+				LOG(DEBUG) << "SMS parsing failed (above L3)";
 				// TODO:: Should we send error back to the phone?
 				return "";
 			}
@@ -562,9 +590,12 @@ class short_msg_pending: public short_msg {
 		linktag (NULL)
 	{
 		if (smp.srcaddrlen) {
-			if (smp.srcaddrlen > sizeof (srcaddr))
-				abfuckingort();
-			memcpy(srcaddr, smp.srcaddr, smp.srcaddrlen);
+			if (smp.srcaddrlen > sizeof (srcaddr)) {
+				LOG(DEBUG) << "Srcaddr data too large";
+				return;  // Can't continue
+			} else {
+				memcpy(srcaddr, smp.srcaddr, smp.srcaddrlen);
+			}
 		}
 			
 		if (smp.qtag) {

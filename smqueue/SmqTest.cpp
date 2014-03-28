@@ -94,11 +94,12 @@ void RecursiveMutextTest(int Level) {
 
 
 // Send fake input to the input socket  incomming default 5063
-#define MAX 100
-#define tport 5063
+#define MAXBUFFER 100
+#define TPORT 5063
+#define REPEAT 10000
 void WriteToUDP() {
 	int sfd, n;
-	char buffer[MAX];
+	char buffer[MAXBUFFER];
 	struct sockaddr_in saddr;
 	char IPAddress[100];
 	socklen_t len;
@@ -106,9 +107,10 @@ void WriteToUDP() {
 	int portNum;
 
 	// Set up test
-	int repeat = 10;
+	int repeat = REPEAT;
+	int pattern = 0;
 	strcpy(IPAddress, "127.0.0.1");
-	portNum = tport;
+	portNum = TPORT;
 
 	sfd = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -117,17 +119,17 @@ void WriteToUDP() {
 	inet_pton(AF_INET, IPAddress, &saddr.sin_addr);
 	saddr.sin_port = htons(portNum);
 
-	LOG(DEBUG) << "WriteToUDP running " << repeat;
+	LOG(DEBUG) << "WriteToUDP running, repeat " << repeat;
 	while(repeat-- > 0) {
 		for (int i = 0; i < sizeof(buffer); i++) {  // Write a pattern to the buffer for each write.
-			buffer[i] = 0;
+			buffer[i] = pattern;
 		}
 		len=sizeof(saddr);
-		LOG(DEBUG) << "Write to UDP port";
+		LOG(DEBUG) << "Write to UDP port, repeat " << repeat;
 		ret = sendto(sfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &saddr, len);
-		LOG(DEBUG) << "Send length " << ret << " of " << len;
-
-		msSleep(5000);
+		LOG(DEBUG) << "Send length " << ret;
+		pattern++;
+		msSleep(2000);
 	} // while
 } // WriteToUDP
 
@@ -138,8 +140,8 @@ void* WriterTestThread(void *ptr) {
 	int msgCount = 0;
 	int repeatCount = 0;
 
-	// WriteToUDP();  // just run once
-	RecursiveMutextTest(gLevel);
+	WriteToUDP();  // just run once
+	//RecursiveMutextTest(gLevel);
 
 
 	//while (true) {

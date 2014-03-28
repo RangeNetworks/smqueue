@@ -25,38 +25,57 @@ using namespace std;
 using namespace GSM;
 
 
-void L3BCDDigits::parse(const L3Frame& src, size_t &rp, size_t numOctets)
+void L3BCDDigits::parse(const L3Frame& src, size_t &rp, size_t numOctets, bool international)
 {
 	unsigned i=0;
 	size_t readOctets = 0;
+	LOG(DEBUG) << "parse international " << international;
+	if (international) mDigits[i++] = '+';
 	while (readOctets < numOctets) {
 		unsigned d2 = src.readField(rp,4);
 		unsigned d1 = src.readField(rp,4);
 		readOctets++;
-		mDigits[i++]=d1+'0';
-		if (d2!=0x0f) mDigits[i++]=d2+'0';
+		mDigits[i++] = d1 == 10 ? '*' : d1 == 11 ? '#' : d1+'0';
+		if (d2!=0x0f) mDigits[i++] = d2 == 10 ? '*' : d2 == 11 ? '#' : d2+'0';
 		if (i>maxDigits) L3_READ_ERROR;
 	}
 	mDigits[i++]='\0';
 }
 
 
+static int encode(char c, bool *invalid)
+{
+	//return c == '*' ? 10 : c == '#' ? 11 : c-'0';
+	if (c == '*') return 10;
+	if (c == '#') return 11;
+	if (isdigit(c)) return c - '0';
+	*invalid = true;
+	return 0;	// Not sure what to do.
+}
+
+
 void L3BCDDigits::write(L3Frame& dest, size_t &wp) const
 {
+	bool invalid = false;
 	unsigned index = 0;
 	unsigned numDigits = strlen(mDigits);
+	if (index < numDigits && mDigits[index] == '+') {
+		index++;
+	}
 	while (index < numDigits) {
-		if ((index+1) < numDigits) dest.writeField(wp,mDigits[index+1]-'0',4);
+		if ((index+1) < numDigits) dest.writeField(wp,encode(mDigits[index+1],&invalid),4);
 		else dest.writeField(wp,0x0f,4);
-		dest.writeField(wp,mDigits[index]-'0',4);
+		dest.writeField(wp,encode(mDigits[index],&invalid),4);
 		index += 2;
 	}
+	if (invalid) { LOG(ERR) << "Invalid BCD string: '" <<mDigits<< "'"; }
 }
 
 
 size_t L3BCDDigits::lengthV() const 
 {
 	unsigned sz = strlen(mDigits);
+	if (*mDigits == '+') sz--;
 	return (sz/2) + (sz%2);
 }
 
@@ -73,6 +92,7 @@ ostream& GSM::operator<<(ostream& os, const L3BCDDigits& digits)
 void L3CalledPartyBCDNumber::writeV( L3Frame &dest, size_t &wp ) const
 {
 	dest.writeField(wp, 0x01, 1);
+	LOG(DEBUG) << "writeV mType" << mType;
 	dest.writeField(wp, mType, 3);
 	dest.writeField(wp, mPlan, 4);
 	mDigits.write(dest,wp);
@@ -84,8 +104,9 @@ void L3CalledPartyBCDNumber::parseV( const L3Frame &src, size_t &rp, size_t expe
 	// ext bit must be 1
 	if (src.readField(rp, 1) != 1) L3_READ_ERROR;	
 	mType = (TypeOfNumber)src.readField(rp, 3);
+	LOG(DEBUG) << "parseV Mtype " << mType;
 	mPlan = (NumberingPlan)src.readField(rp, 4);
-	mDigits.parse(src,rp,expectedLength-1);
+	mDigits.parse(src,rp,expectedLength-1, mType == InternationalNumber);
 }
 
 
@@ -108,6 +129,7 @@ void L3CallingPartyBCDNumber::writeV( L3Frame &dest, size_t &wp ) const
 {
 	// If Octet3a is extended, then write 0 else 1.
 	dest.writeField(wp, (!mHaveOctet3a & 0x01), 1);
+	LOG(DEBUG) << "writeV mType" << mType;
 	dest.writeField(wp, mType, 3);
 	dest.writeField(wp, mPlan, 4);
 
@@ -125,12 +147,15 @@ void L3CallingPartyBCDNumber::writeV( L3Frame &dest, size_t &wp ) const
 
 
 
+// (pat) 24.008 10.5.4.9 quote: "This IE is not used in the MS to network direction."
+// Which is a good thing because I do not think this parseV is correct.
 void L3CallingPartyBCDNumber::parseV( const L3Frame &src, size_t &rp, size_t expectedLength) 
 {
 	size_t remainingLength = expectedLength;
 	// Read out first bit = 1.
-	mHaveOctet3a = src.readField(rp, 1);	
+	mHaveOctet3a = !src.readField(rp, 1);	// Bit is reversed 0 means you have an octet
 	mType = (TypeOfNumber)src.readField(rp, 3);
+	LOG(DEBUG) << "parseV mType" << mType;
 	mPlan = (NumberingPlan)src.readField(rp, 4);
 	remainingLength -= 1;
 
@@ -142,7 +167,7 @@ void L3CallingPartyBCDNumber::parseV( const L3Frame &src, size_t &rp, size_t exp
 		remainingLength -= 1;
 	}
 
-	mDigits.parse(src,rp,remainingLength);
+	mDigits.parse(src,rp,remainingLength, mType == InternationalNumber);
 }
 
 

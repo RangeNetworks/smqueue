@@ -153,6 +153,7 @@ class TLTimestamp : public TLElement {
 	size_t length() const { return mTime.lengthV(); }
 	void write(TLFrame& dest, size_t& wp) const { mTime.writeV((GSM::L3Frame&)(BitVector&)dest, wp); }
 	void parse(const TLFrame& src, size_t& rp) { mTime.parseV((GSM::L3Frame&)(BitVector&)src, rp); }
+	void text(std::ostream&os) const;
 };
 
 

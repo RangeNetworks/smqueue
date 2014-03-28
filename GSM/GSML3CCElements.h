@@ -39,9 +39,13 @@ class L3BCDDigits {
 
 	L3BCDDigits() { mDigits[0]='\0'; }
 
+	// (pat) The -1 below and +1 above are mutually redundant.
 	L3BCDDigits(const char* wDigits) { strncpy(mDigits,wDigits,sizeof(mDigits)-1); mDigits[sizeof(mDigits)-1]='\0'; }
 
-	void parse(const L3Frame& src, size_t &rp, size_t numOctets);
+	L3BCDDigits(const L3BCDDigits &other) {
+		memcpy(mDigits,other.mDigits,sizeof(mDigits));
+	}
+	void parse(const L3Frame& src, size_t &rp, size_t numOctets, bool international = false);
 	void write(L3Frame& dest, size_t &wp) const;
 
 	/** Return number of octets needed to encode the digits. */

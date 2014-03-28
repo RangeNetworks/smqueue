@@ -64,6 +64,7 @@ CPMessage * SMS::CPFactory(CPMessage::MessageType val)
 
 
 
+// (pat) This parses an incoming SMS message from the MS, called from 
 CPMessage * SMS::parseSMS( const GSM::L3Frame& frame )
 {
 	CPMessage::MessageType MTI = (CPMessage::MessageType)(frame.MTI());	
@@ -72,7 +73,13 @@ CPMessage * SMS::parseSMS( const GSM::L3Frame& frame )
 	CPMessage * retVal = CPFactory(MTI);
 	if( retVal==NULL ) return NULL;
 	retVal->TI(frame.TI());
-	retVal->parse(frame);
+	// Documentation courtesy pat:
+	// The L3Message::CPMessage is a base class for CPData, CPAck, CPError, one of which is created by the CPFactory above.
+	// The below calls L3Message::parse which calls the parseBody from the derived class.
+	// For CPAck and CPError, parseBody is null (or worse, assert out - a former bug.)
+	// For CPData messages:  calls CPData::parseBody which then calls L3ProtocolElement::parseLV which calls:
+	// CPUserData::parseV, which just copies the data into CPUserData::mRPDU; which is an L3Frame::RLFrame
+	retVal->parse(frame);	
 	LOG(DEBUG) << *retVal;
 	return retVal;
 }
@@ -136,7 +143,7 @@ TLMessage *SMS::parseTPDU(const TLFrame& TPDU)
 void CPMessage::text(ostream& os) const 
 {
 	os << (CPMessage::MessageType)MTI();
-	os <<" TI=" << mTI;
+	os <<LOGHEX2("TI",mTI);
 }
 
 
@@ -176,10 +183,18 @@ void CPError::writeBody( L3Frame& dest, size_t &wp ) const
 }
 
 
+// called from SMS::parseSMS.
 void CPUserData::parseV(const L3Frame& src, size_t &rp, size_t expectedLength)
 {
 	unsigned numBits = expectedLength*8;
+	// WARNING: segmentCopyTo does not modify the size of the target so we must do it.
 	mRPDU.resize(numBits);
+	int actualLength = (int) src.size() - rp;
+	if (actualLength < (int)numBits) {
+		// The length field (third byte) in the L3Frame was bogus, less than the remaining length of the frame.
+		LOG(ERR)<<"Invalid SMS frame:"<<LOGVAR(expectedLength*8) <<" (from L3 header)"<<LOGVAR(actualLength);
+		L3_READ_ERROR;
+	}
 	src.segmentCopyTo(mRPDU,rp,numBits);
 	rp += numBits;
 }
@@ -670,8 +685,12 @@ void TLUserData::text(ostream& os) const
 }
 
 
+// (pat 10-2013) This is just wrong.  The contents of the first byte depend
+// on the message type, so there is no separate "body".  This routine should not
+// skip the first byte, it should let the invidual parsers crack out the TLMessage header bits.
 void TLMessage::parse(const TLFrame& src)
 {
+
 	// FIXME -- Check MTI for consistency.
 	size_t rp=8;
 	return parseBody(src,rp);
@@ -757,9 +776,15 @@ void TLDeliver::writeBody(TLFrame& dest, size_t& wp) const
 void TLDeliver::text(ostream& os) const
 {
 	TLMessage::text(os);
-	os << " OA=(" << mOA << ")";
-	os << " SCTS=(" << mSCTS << ")";
-	os << " UD=(" << mUD << ")";
+	os << " OriginatingAddress=(" << mOA << ")";
+	os << " SCTimeStamp=(" << mSCTS << ")";
+	os << " DataCodingScheme="<<mUD.DCS();
+	os << " UserData=(" << mUD << ")";
+}
+
+void TLTimestamp::text(std::ostream&os) const
+{
+	mTime.text(os);
 }
 
 
