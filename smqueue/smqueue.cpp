@@ -1186,7 +1186,7 @@ void SMq::process_timeout()
 			if (my_network.deliver_msg_datagram(&*qmsg))
 				set_state(qmsg, ASKED_FOR_MSG_DELIVERY);   // Message sent okay
 			else
-				set_state(qmsg, ASKED_FOR_MSG_DELIVERY); // svgfix I thinsk this makes more sense
+				set_state(qmsg, ASKED_FOR_MSG_DELIVERY); // This makes more sense than back to REQUEST_DESTINATION_SIPURL
 			LOG(DEBUG) << "After deliver set state action time " << qmsg->next_action_time;
 			break;
 
