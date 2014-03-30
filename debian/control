@@ -1,4 +1,4 @@
-Source: smqueue
+Source: smqueue-public
 Section: comm
 Priority: optional
 Maintainer: Range Networks, Inc. <info@rangenetworks.com>
@@ -6,7 +6,8 @@ Homepage: http://www.rangenetworks.com/
 Build-Depends: build-essential, debhelper (>= 7), libtool, pkg-config, autoconf, libsqlite3-dev, libosip2-dev, libzmq3-dev
 Standards-Version: 3.7.3
 
-Package: smqueue
+Package: smqueue-public
+Provides: smqueue
 Section: comm
 Priority: optional
 Architecture: any
