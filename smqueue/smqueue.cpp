@@ -177,7 +177,7 @@ string SMqueue::sm_state_strings[STATE_MAX_PLUS_ONE] = {
 
 
 
-string sm_state_string(enum sm_state astate)
+string SMqueue::sm_state_string(enum sm_state astate)
 {
 	if (astate < STATE_MAX_PLUS_ONE)
 		return sm_state_strings[astate];
@@ -550,6 +550,7 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 			return 400;
 		}
 		clen = 0;
+		// Leave this test in for responses
 		if (p->content_length && p->content_length->value) {
 			errno = 0;
 			clen = strtol(p->content_length->value, &endptr, 10);
@@ -557,6 +558,8 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 				LOG(DEBUG) << "Invalid Content Length";
 				return 400;
 			}
+		} else {
+				LOG(DEBUG) << "Content Length zero";
 		}
 		if (clen != 0) {
 			LOG(DEBUG) << "ACK has a content length";
@@ -606,25 +609,28 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 				LOG(DEBUG) << "Content type not supported";
 				return 415;
 			}
-			if (p->bodies.nb_elt != 1 || !p->bodies.node
-			    || 0 != p->bodies.node->next
-			    || !p->bodies.node->element
-			    || false) { // .
-				LOG(DEBUG) << "Message entity-body too large";
-				return 413;	// "Request entity-body too large"
+
+			int len;
+			if (p->content_length && p->content_length->value && ((len=strtol(p->content_length->value, NULL, 10)) > 0) ) {
+				//If length is greater than zero check this
+				// Bad if any of these are true nb_elt!=1,  node=0,   node->next!=0,   node->element=0
+				if (p->bodies.nb_elt != 1  // p->bodies.nb_elt should always be one
+					|| 0 == p->bodies.node
+					|| 0 != p->bodies.node->next
+					|| 0 == p->bodies.node->element) {
+					LOG(DEBUG) << "Message entity-body too large";
+					return 413;	// Request entity-body too large
+				}
+			} else {
+				LOG(DEBUG) << "Content length is zero";
 			}
+
 			if (!p->cseq || !p->cseq->method
 			    || 0 != strcmp("MESSAGE", p->cseq->method)
 			    || !p->cseq->number) {  // FIXME, validate number??
 				LOG(DEBUG) << "Invalid sequence number";
 				return 400;
 			}
-
-			// contacts -- cannot occur in SIP MESSAGE's
-			// or most response acks.
-			// DCK: As a stop gap, we are going to allow them.
-			/*if (p->contacts.nb_elt)
-				return 400;*/
 
 		} else if (0 == strcmp("REGISTER", p->sip_method)) {
 			// Null username is OK in register message.
@@ -654,23 +660,9 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 		LOG(DEBUG) << "No call-id";
 		return 400;
 	}
-	// call_infos - no restrictions
-	// content-encodings - FIXME - no restrictions?
-	clen = 0;
-	if (p->content_length && p->content_length->value) {
-		errno = 0;
-		clen = strtol(p->content_length->value, &endptr, 10);
-		if (*endptr != '\0' || errno != 0) {  // Errs or trailing crud?
-			LOG(DEBUG) << "Invalid data in message";
-			return 413;
-		}
-	}
-	// clen is now the numeric content_length.
-	// FIXME where is the message body??
-	// FIXME check the content_length for < 140 chars too */
-	// But we may have to do that AFTER the encoding, etc is decoded
 
-	// error_infos - no restrictions
+	// Remove content length check
+	// According to rfc3261 length can be 0 or greater  svg 03/20/2014
 
 	// From address needs to exist but a tag in the from address is optional
 	if (!p->from || !p->from->url
@@ -800,7 +792,7 @@ short_msg_pending::set_qtag()
 	char *fromtag;
 	int error;
 
-	LOG(DEBUG) << "Enter parse";  //SVGDBG
+	//LOG(DEBUG) << "Enter parse";
 	if (!parsed_is_valid) {
 		if (!parse()) {
 			LOG(DEBUG) << "Parse failed in setqtag";
@@ -2204,7 +2196,7 @@ SMq::respond_sip_ack(int errcode, SMqueue::short_msg_pending *smp,
 		return;		// Don't ack invalid SIP messages
 	}
 
-	LOG(DEBUG) << "Short message parse returned success";  // SVGDBG
+	LOG(DEBUG) << "Short message parse returned success";
 	if (MSG_IS_RESPONSE(smp->parsed)) {
 		LOG(DEBUG) << "Ignore response message";
 		return;		// Don't ack a response message, or we loop!
@@ -2470,8 +2462,7 @@ void SMq::main_loop(int msTMO)
 				     << smp->qtag << "' from "
 				     << smp->parsed->from->url->username 
 				     << " for "
-				     << (smp->parsed->req_uri ? smp->parsed->req_uri->username : "")  // just shows smsc
-				     << ".";
+				     << (smp->parsed->req_uri ? smp->parsed->req_uri->username : "");  // just shows smsc
 			} else {
 				LOG(INFO) << "Got SMS "
 				     << smp->parsed->status_code
@@ -2496,7 +2487,7 @@ void SMq::main_loop(int msTMO)
 
 		// We won't leak memory if we didn't queue it up, since
 		// the delete of smpl will delete anything still
-		// in ITS list.
+		// in its list.
 		delete smpl;  // List entry that got added
 	} // got datagram
 
@@ -2512,7 +2503,7 @@ void SMq::debug_dump() {
 	short_msg_p_list::iterator x = time_sorted_list.begin();
 	for (; x != time_sorted_list.end(); ++x) {
 		x->make_text_valid();
-		LOG(DEBUG) << "== State: " << sm_state_string (x->state) << "\t"
+		LOG(DEBUG) << "=== State: " << sm_state_string(x->state) << "\t"
 		     << (x->next_action_time - now) << endl << "MSG = "
 		     << x->text;
 	}
@@ -2538,16 +2529,23 @@ SMq::save_queue_to_file(std::string qfile)
 		return false;
 
 	lockSortedList(); // Lock file during the write.  Check the time on this.
+	// Example of what should be in the file
+	// === 10 -506057005 127.0.0.1:5062 640 0 0
+	// === state  next_action_time  network_address  length  ms_to_sc  need_repack  message_text
+
 	short_msg_p_list::reverse_iterator x = time_sorted_list.rbegin();
 	for (; x != time_sorted_list.rend(); ++x) {
 		x->make_text_valid();
-		ofile << "=== " << (int) x->state << " " 
+		ofile << "=== "
+			<< (int) x->state << " "
 		      << x->next_action_time << " "
 		      << my_network.string_addr((struct sockaddr *)x->srcaddr, x->srcaddrlen, true) << " "
-		      << strlen(x->text)
-		      << x->ms_to_sc << x->need_repack << endl
+		      << strlen(x->text) << " "
+		      << x->ms_to_sc << " "
+		      << x->need_repack << endl
 		      << x->text << endl << endl;
 		howmany++;
+		LOG(DEBUG) << "Write entry:" << howmany << " Len:" << strlen(x->text) << " MSG:" << x->text;
 	}
 	unlockSortedList();
 
@@ -2584,25 +2582,32 @@ SMq::read_queue_from_file(std::string qfile)
 	int errcode;
 	LOG(DEBUG) << "read_queue_from_file:" << qfile;
 
-	ifile.open (qfile.c_str(), ios::in | ios::binary);
+	ifile.open(qfile.c_str(), ios::in | ios::binary);
 	if (!ifile.is_open())
 		return false;
+
+	// === state  next_action_time  network_address  length  ms_to_sc  need_repack  message_text	// === state   next_action_time   network_address    length message_text  ms_to_sc    need_repack
 	while (!ifile.eof()) {
 		ifile >> equals >> astate >> atime;
 		if ((equals != "===") || (ifile.eof())) {  // === is the beginning of a record
+			LOG(DEBUG) << "End of smqueue file";
 			break;  // End of file
 		}
+		// LOG(DEBUG) << "Get next entry";
 		ifile >> netaddrstr;
 		ifile >> alength;
 		ifile >> ms_to_sc;
 		ifile >> need_repack;
+		//LOG(DEBUG) << "netaddrstr=" << netaddrstr << " length=" << alength << " ms_to_sc="
+		//		<< ms_to_sc << " need_repack=" << need_repack;
+
 		while (ifile.peek() == '\n')
-			ignoreme = ifile.get();
+			ignoreme = ifile.get();  // Skip over blank lines
 		msgtext = new char[alength+2];
 		// Get alength chars (or until null char, hope there are none)
-		ifile.get(msgtext, alength+1, '\0');
+		ifile.get(msgtext, alength+1, '\0');  // read the next record
 		while (ifile.peek() == '\n')
-			ignoreme = ifile.get();
+			ignoreme = ifile.get();  // Skip blanks
 		howmany++;
 		mystate = (SMqueue::sm_state)astate;
 		mytime = atime;

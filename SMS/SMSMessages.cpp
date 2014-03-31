@@ -90,7 +90,8 @@ RPData *SMS::hex2rpdata(const char *hexstring)
 	RPData *rp_data = NULL;
 
 	BitVector RPDUbits(strlen(hexstring)*4);
-	if (!RPDUbits.unhex(hexstring)) {
+	if ((strlen(hexstring) == 0) || !RPDUbits.unhex(hexstring)) {
+		LOG(DEBUG) << "SMS RPDU string is empty";
 		return NULL;
 	}
 	LOG(DEBUG) << "SMS RPDU bits: " << RPDUbits;
@@ -291,16 +292,16 @@ void RPData::parseBody(const RLFrame& src, size_t &rp)
 	mOriginator.parseLV(src,rp);
 	mDestination.parseLV(src,rp);
 	mUserData.parseLV(src,rp);
-	//LOG(DEBUG) << "parseBody orig=" << mOriginator << " dest=" << mDestination;
+	//LOG(DEBUG) << "parseBody orig=" << mOriginator << " dest=" << mDestination << " mUserData=" << mUserData;
 }
 
 
 void RPData::writeBody(RLFrame& dest, size_t& wp) const
 {
 	// GSM 04.11 7.3.1.1
-	// This is the downlink form.
+	// This is the downlink form
+	//LOG(DEBUG) << "writeBody orig=" << mOriginator << " dest=" << mDestination << " mUserData=" << mUserData;
 	mOriginator.writeLV(dest,wp);
-	//LOG(DEBUG) << "writeBody orig=" << mOriginator << " dest=" << mDestination;
 	mDestination.writeLV(dest,wp);
 	mUserData.writeLV(dest,wp);
 }

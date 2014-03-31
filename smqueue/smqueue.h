@@ -54,9 +54,6 @@ namespace SMqueue {
 /* Maximum text size of an SMS message.  */
 #define SMS_MESSAGE_MAX_LENGTH  160
 
-/* std::abort isn't always there.  Neither is the C library version.
-   Idiots?  You tell me.  */
-void abfuckingort();			// Where is the real one?
 
 /* strdup uses malloc, which doesn't play well with new/delete.
    The idiots who defined C++ don't provide one, so we will. */
@@ -75,7 +72,7 @@ char *new_strdup(const char *orig);
 
 enum sm_state {				// timeout, next-state-if-timeout
 	NO_STATE,
-	INITIAL_STATE,
+	INITIAL_STATE, // 1
 	REQUEST_FROM_ADDRESS_LOOKUP,
 	ASKED_FOR_FROM_ADDRESS_LOOKUP,  //3
 
@@ -104,7 +101,7 @@ enum sm_state {				// timeout, next-state-if-timeout
 
 // How to print a state
 extern std::string sm_state_strings[STATE_MAX_PLUS_ONE];
-std::string sm_state_name(enum sm_state astate);
+extern string sm_state_string(enum sm_state astate);
 
 /* Set this once we've called the initializer for the OSIP parser library. */
 extern bool osip_initialized;
@@ -286,7 +283,7 @@ class short_msg {
 			return true;
 
 		if (!osip_initialized) {
-			LOG(DEBUG) << "Calling osip_init"; // SVGDBG
+			//LOG(DEBUG) << "Calling osip_init";
 			i = osip_init(&osipptr);
 			if (i != 0) {
 				LOG(DEBUG) << "osip_init failed error " << i;
@@ -298,14 +295,14 @@ class short_msg {
 		unparse();	// Free any previous one.
 
 		// Parse SIP message
-		LOG(DEBUG) << "Calling osip_message_init"; // SVGDBG
+		//LOG(DEBUG) << "Calling osip_message_init";
 		i = osip_message_init(&sip);
 		if (i != 0)  {
 			LOG(DEBUG) << "osip_message_init failed error " << i;
 			return false;
 		}
 
-		LOG(DEBUG) << "Calling osip_message_parse"; // SVGDBG
+		//LOG(DEBUG) << "Calling osip_message_parse";
 		i = osip_message_parse(sip, text, text_length);
 		if (i != 0) {
 			LOG(DEBUG) << "osip_message_parse failed error " << i;
@@ -322,34 +319,34 @@ class short_msg {
 			LOG(DEBUG) << "SMS content not set continue anyway??";
 			// Most likely this is SIP response.
 			content_type = UNSUPPORTED_CONTENT;
-			// SVGDBG Consider not continuing
+			// SVG Consider not continuing
 		} else if (  strcmp(parsed->content_type->type, "text") == 0
 		          && strcmp(parsed->content_type->subtype, "plain") == 0)
 		{
 			// If Content-Type is text/plain, then no decoding is needed.
 			content_type = TEXT_PLAIN;
-			LOG(DEBUG) << "SMS message encoded text"; //SVGDBG
+			//LOG(DEBUG) << "SMS message encoded text";
 		} else if (  strcmp(parsed->content_type->type, "application") == 0
 		          && strcmp(parsed->content_type->subtype, "vnd.3gpp.sms") == 0)
 		{
 			// This is an encoded SMS' TPDU.
-			LOG(DEBUG) << "SMS message encoded 3GPP"; //SVGDBG
+			LOG(DEBUG) << "SMS message encoded 3GPP";
 			content_type = VND_3GPP_SMS;
 
 			// Decode it RP-DATA
 			osip_body_t *bod1 = (osip_body_t *)parsed->bodies.node->element;
 			const char *bods = bod1->body;
-			LOG(DEBUG) << "Calling hex2rpdata"; // SVGDBG
+			//LOG(DEBUG) << "Calling hex2rpdata";
 			rp_data = hex2rpdata(bods);
 			if (rp_data == NULL) {
-				LOG(INFO) << "RP-DATA unpacking failed";
-				return false;
+				LOG(INFO) << "RP-DATA length is zero";  // This is okay
+				return true;
 			}
 
 			// Decode RPDU
 			tl_message = parseTPDU(rp_data->TPDU());
-			if (rp_data == NULL) {
-				LOG(INFO) << "RPDU parsing failed";
+			if (tl_message == NULL) {
+				LOG(INFO) << "TPDU parsing failed";
 				return false;
 			}
 		}
@@ -364,7 +361,7 @@ class short_msg {
 	   so we have to invalidate both of them. */
 	void
 	parsed_was_changed() {
-		LOG(DEBUG) << "Calling osip_message_force_update"; // SVGDBG
+		//LOG(DEBUG) << "Calling osip_message_force_update";
 		parsed_is_better = true;
 		osip_message_force_update(parsed);   // Tell osip library too
 	}
@@ -384,7 +381,7 @@ class short_msg {
 				return;
 			}
 
-			LOG(DEBUG) << "Calling osip_message_to_str"; //SVGDBG
+			//LOG(DEBUG) << "Calling osip_message_to_str";
 			int i = osip_message_to_str(parsed, &dest, &length);
 			if (i != 0) {
 				LOG(DEBUG) << "osip_message_to_str failed";  // Is this fatal
@@ -426,12 +423,18 @@ class short_msg {
 		parsed_is_better = false;
 	} //unparse
 
+
+	// Get text for short message
 	std::string get_text() const
 	{
 		switch (content_type) {
 		case TEXT_PLAIN: {
-			osip_body_t *bod1 = (osip_body_t *)parsed->bodies.node->element;
-			return bod1->body;
+			if (parsed->bodies.node != 0) {
+				osip_body_t *bod1 = (osip_body_t *)parsed->bodies.node->element;
+				return bod1->body;
+			} else {
+				return "";
+			}
 		}
 		break;
 
@@ -677,7 +680,7 @@ class short_msg_pending: public short_msg {
 	void set_state(enum sm_state newstate) {
 		next_action_time = msgettime() +
 			(*SMqueue::timeouts[state])[newstate];
-		LOG(DEBUG) << "Set state orig " << state << " Newstate " << newstate
+		LOG(DEBUG) << "Set state Current: " << sm_state_string(state) << " Newstate: " << sm_state_string(newstate)
 				<< " Timeout value " << *SMqueue::timeouts[state][newstate];
 		state = newstate;
 		/* If we're in a queue, some code in another class is now going

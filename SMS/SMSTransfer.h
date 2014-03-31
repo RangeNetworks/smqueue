@@ -30,6 +30,7 @@
 #include <ostream>
 #include <BitVector.h>
 #include <GSMTransfer.h>
+#include <Logger.h>
 
 namespace SMS {
 

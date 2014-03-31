@@ -189,13 +189,20 @@ void pack_tpdu(short_msg_p_list::iterator &smsg)
 	osip_message_t *omsg = smsg->parsed;
 
 	// Message body
-	osip_body_t *bod1 = (osip_body_t *)omsg->bodies.node->element;
-	osip_free(bod1->body);
-	ostringstream body_stream;
-	RPDU_new.hex(body_stream);
-	bod1->length = body_stream.str().length();
-	bod1->body = (char *)osip_malloc (bod1->length+1);
-	strcpy(bod1->body, body_stream.str().data());
+	LOG(DEBUG) << "omsg->bodies.node " << omsg->bodies.node
+			<< " omsg->bodies.node->element " << omsg->bodies.node->element;
+
+	if (omsg->bodies.node != 0 && omsg->bodies.node->element != 0) {
+		osip_body_t *bod1 = (osip_body_t *)omsg->bodies.node->element;
+		osip_free(bod1->body);
+		ostringstream body_stream;
+		RPDU_new.hex(body_stream);
+		bod1->length = body_stream.str().length();
+		bod1->body = (char *)osip_malloc (bod1->length+1);
+		strcpy(bod1->body, body_stream.str().data());
+	} else {
+		LOG(DEBUG) << "String length zero";
+	}
 
 	// Let them know that parsed part has been changed.
 	smsg->parsed_was_changed();
@@ -430,6 +437,7 @@ bool pack_text_to_tpdu(const std::string &body,
 	return true;
 }
 
+
 bool pack_plain_text(const std::string &body,
                        short_msg_p_list::iterator &smsg)
 {
@@ -437,12 +445,13 @@ bool pack_plain_text(const std::string &body,
 	osip_message_t *omsg = smsg->parsed;
 
 	// Message body
-	osip_body_t *bod1 = (osip_body_t *)omsg->bodies.node->element;
-	osip_free(bod1->body);
-	bod1->length = body.length();
-	bod1->body = (char *)osip_malloc (bod1->length+1);
-	strcpy(bod1->body, body.data());
-
+	if (omsg->bodies.node != 0 && omsg->bodies.node->element != 0) {
+		osip_body_t *bod1 = (osip_body_t *)omsg->bodies.node->element;
+		osip_free(bod1->body);
+		bod1->length = body.length();
+		bod1->body = (char *)osip_malloc (bod1->length+1);
+		strcpy(bod1->body, body.data());
+	}
 	// Let them know that parsed part has been changed.
 	smsg->parsed_was_changed();
 
@@ -537,7 +546,7 @@ bool pack_sms_for_delivery(short_msg_p_list::iterator &smsg)
 	} else {
 		switch (content_type) {
 		case short_msg::TEXT_PLAIN:
-			return_action = pack_text_to_tpdu(msgtext, smsg);
+			return_action = pack_plain_text(msgtext, smsg);
 			break;
 
 		case short_msg::VND_3GPP_SMS:
