@@ -12,6 +12,6 @@ Section: comm
 Priority: optional
 Architecture: any
 Essential: no
-Depends: sqlite3, libosip2-4 | libosip2-10, libzmq3
+Depends: sqlite3, libosip2-4, libc6, pkg-config, libzmq1
 Description: Range Networks - SMQueue RFC-3428 Store and Forward Server
 
