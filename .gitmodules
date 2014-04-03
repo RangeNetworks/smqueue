@@ -2,10 +2,6 @@
 	path = SR
 	url = git@github.com:RangeNetworks/subscriberRegistry.git
 	branch = master
-[submodule "CommonLibs"]
-	path = CommonLibs
-	url = git@github.com:kheimerl/CommonLibs.git
-	branch = berkeley
 [submodule "sqlite3"]
 	path = sqlite3
 	url = git@github.com:RangeNetworks/sqlite3.git
@@ -14,3 +10,7 @@
 	path = NodeManager
 	url = git@github.com:RangeNetworks/NodeManager.git
 	branch = master
+[submodule "CommonLibs"]
+	path = CommonLibs
+	url = git@github.com:endaga/CommonLibs.git
+	branch = berkeley-power
