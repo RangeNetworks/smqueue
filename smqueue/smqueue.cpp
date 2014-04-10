@@ -1458,6 +1458,10 @@ void SMq::InitInsideReaderLoop() {
         smq.set_global_relay("", "", "");
     }
 
+    // IP address of our own smqueue, as seen from outside.
+    smq.set_my_ipaddress(gConfig.getStr("SIP.myIP" /* "127.0.0.1" */).c_str());
+    smq.set_my_2nd_ipaddress(gConfig.getStr("SIP.myIP2" /* "NAT crap" */).c_str());
+
     // Debug -- print all msgs in log
     print_as_we_validate = gConfig.getBool("Debug.print_as_we_validate");
 
@@ -3238,6 +3242,28 @@ ConfigurationKeyMap getConfigurationKeys()
 	map[tmp->getName()] = *tmp;
 	delete tmp;
 
+	tmp = new ConfigurationKey("SIP.myIP","127.0.0.1",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::IPADDRESS,
+		"",
+		false,
+		"The internal IP address. Usually 127.0.0.1."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SIP.myIP2","192.168.0.100",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::IPADDRESS,
+		"",
+		false,
+		"The external IP address that is communciated to the SIP endpoints."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
 	tmp = new ConfigurationKey("SIP.myPort","5063",
 		"",
 		ConfigurationKey::CUSTOMERWARN,
@@ -3337,6 +3363,17 @@ ConfigurationKeyMap getConfigurationKeys()
 		"",
 		false,
 		"The location of the sqlite3 database holding the subscriber registry."
+	);
+	map[tmp->getName()] = *tmp;
+	delete tmp;
+
+	tmp = new ConfigurationKey("SubscriberRegistry.Port","5064",
+		"",
+		ConfigurationKey::CUSTOMERWARN,
+		ConfigurationKey::PORT,
+		"",
+		false,
+		"Port used by the SIP Authentication Server. NOTE: In some older releases (pre-2.8.1) this is called SIP.myPort."
 	);
 	map[tmp->getName()] = *tmp;
 	delete tmp;
