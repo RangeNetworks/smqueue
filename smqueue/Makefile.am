@@ -71,7 +71,7 @@ smqueue_LDADD = \
 install: smqueue
 	mkdir -p "$(DESTDIR)/OpenBTS/"
 	install smqueue "$(DESTDIR)/OpenBTS/"
-	mkdir -p "$(DESTDIR)/etc/supervisord/conf.d/"
+	mkdir -p "$(DESTDIR)/etc/supervisor/conf.d/"
 	install smqueue.conf "$(DESTDIR)/etc/supervisor/conf.d/"
 	mkdir -p "$(DESTDIR)/etc/OpenBTS/"
 	install smqueue.example.sql "$(DESTDIR)/etc/OpenBTS/"
