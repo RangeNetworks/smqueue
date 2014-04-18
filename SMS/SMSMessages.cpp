@@ -483,10 +483,12 @@ void TLValidityPeriod::write(TLFrame& dest, size_t& wp) const
 
 void TLValidityPeriod::text(ostream& os) const
 {
-	char str[27];
+	//char str[27];
 	time_t seconds = mExpiration.sec();
-	ctime_r(&seconds,str);
-	str[24]='\0';
+	//ctime_r(&seconds,str);
+	//str[24]='\0';
+        std::string str;
+        Timeval::isoTime(seconds, str, true);
 	os << "expiration=(" << str << ")";
 }
 

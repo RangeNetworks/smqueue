@@ -18,6 +18,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+CXXFLAGS := -DTIMESTAMP_ISO=`date +'"%Y-%m-%dT%H:%M:%S"'`
+CFLAGS := -DTIMESTAMP_ISO=`date +'"%Y-%m-%dT%H:%M:%S"'`
+
 COMMON_INCLUDEDIR = $(top_srcdir)/CommonLibs
 GSM_INCLUDEDIR = $(top_srcdir)/GSM
 SMS_INCLUDEDIR = $(top_srcdir)/SMS

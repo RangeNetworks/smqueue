@@ -120,10 +120,12 @@ void L3TimeZoneAndTime::parseV(const L3Frame& src, size_t& rp)
 
 void L3TimeZoneAndTime::text(ostream& os) const
 {
-	char timeStr[26];
+	//char timeStr[26];
 	const time_t seconds = mTime.sec();
-	ctime_r(&seconds,timeStr);
-	timeStr[24]='\0';
+        std::string timeStr;
+        Timeval::isoTime(seconds, timeStr, true);
+	//ctime_r(&seconds,timeStr);
+	//timeStr[24]='\0';
 	os << timeStr << " (local)";
 }
 
