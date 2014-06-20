@@ -20,4 +20,4 @@
 #include "config.h"
 #include <Globals.h>
 
-const char *gVersionString = "release " VERSION " built " TIMESTAMP_ISO " rev" SVN_REV " ";
+const char *gVersionString = "release " VERSION " built " TIMESTAMP_ISO " " REPO_REV " ";
