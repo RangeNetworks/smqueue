@@ -1,7 +1,7 @@
 [submodule "SR"]
 	path = SR
-	url = git@github.com:RangeNetworks/subscriberRegistry.git
-	branch = master
+	url = git@github.com:endaga/subscriberRegistry.git
+	branch = berkeley
 [submodule "sqlite3"]
 	path = sqlite3
 	url = git@github.com:RangeNetworks/sqlite3.git
