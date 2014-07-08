@@ -14,7 +14,3 @@
 	path = NodeManager
 	url = https://github.com/endaga/NodeManager.git
 	branch = master
-[submodule "CommonLibs"]
-	path = CommonLibs
-	url = git@github.com:endaga/CommonLibs.git
-	branch = berkeley-power
