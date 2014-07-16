@@ -15,11 +15,6 @@ git:
 
 before_install:
  - sudo apt-get install -qq libosip2-dev
- - git clone https://github.com/RangeNetworks/libzmq.git
- - cd libzmq
- - ./build.sh
- - sudo dpkg -i *.deb
- - cd ..
  - git clone https://github.com/RangeNetworks/libcoredumper.git
  - cd libcoredumper
  - ./build.sh
@@ -29,6 +24,7 @@ before_install:
  - git submodule update --init
  - sed -i 's/git@github.com:/git:\/\/github.com\//' ./SR/.gitmodules
  - git submodule update --init --recursive
+ - sudo ./NodeManager/install_libzmq.sh
 
 #install:
 #  - sh bootstrap.sh
