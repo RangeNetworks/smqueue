@@ -1,5 +1,6 @@
 dnl
 dnl Copyright 2008, 2009, 2010 Free Software Foundation, Inc.
+dnl Copyright 2014 Range Networks, Inc.
 dnl
 dnl This software is distributed under the terms of the GNU Public License.
 dnl See the COPYING file in the main directory for details.
@@ -18,7 +19,7 @@ dnl You should have received a copy of the GNU General Public License
 dnl along with this program.  If not, see <http://www.gnu.org/licenses/>.
 dnl
 
-AC_INIT(smqueue,4.0TRUNK)
+AC_INIT(smqueue,5.0.0-prealpha)
 AC_PREREQ(2.57)
 AC_CONFIG_SRCDIR([config/Makefile.am])
 AC_CONFIG_AUX_DIR([.])	
@@ -56,18 +57,18 @@ AC_C_BIGENDIAN
 
 dnl Check for libzmq
 if test ! -r "/usr/include/zmq.h" -a ! -r "/usr/local/include/zmq.h"; then
-    AC_MSG_ERROR([/usr/local/include/zmq.h not found. Install the range-libzmq package or manually build and install with $ sudo ./NodeManager/install_libzmq.sh])
+    AC_MSG_ERROR([/usr/local/include/zmq.h not found. Install the libzmq3-dev package manually or run $ sudo ./NodeManager/install_libzmq.sh])
 fi
 if test ! -r "/usr/include/zmq.hpp" -a ! -r "/usr/local/include/zmq.hpp"; then
-    AC_MSG_ERROR([/usr/local/include/zmq.hpp not found. Install the range-libzmq package or manually build and install with $ sudo ./NodeManager/install_libzmq.sh])
+    AC_MSG_ERROR([/usr/local/include/zmq.hpp not found. Install the libzmq3-dev package manually or run $ sudo ./NodeManager/install_libzmq.sh])
 fi
-AC_CHECK_LIB(zmq, zmq_init, ,[AC_MSG_ERROR([Cannot link with -lzmq.  Install the range-libzmq package or manually build and install with $ sudo ./NodeManager/install_libzmq.sh])])
+AC_CHECK_LIB(zmq, zmq_init, ,[AC_MSG_ERROR([Cannot link with -lzmq. Install the libzmq3-dev package manually or run $ sudo ./NodeManager/install_libzmq.sh])])
 AC_MSG_CHECKING([whether libzmq installation works])
 AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <zmq.h>],
                                 [zmq_init(1);])
                ],
                [AC_MSG_RESULT([yes])],
-               [AC_MSG_ERROR([no. Install the range-libzmq package or manually build and install with $ sudo ./NodeManager/install_libzmq.sh])])
+               [AC_MSG_ERROR([no. Install the libzmq3-dev package manually or run $ sudo ./NodeManager/install_libzmq.sh])])
 
 # Defines OSIP_CFLAGS, OSIP_INCLUDEDIR, and OSIP_LIBS
 PKG_CHECK_MODULES(OSIP, libosip2)
@@ -87,7 +88,6 @@ AC_CONFIG_FILES([\
     GSM/Makefile \
     SMS/Makefile \
     NodeManager/Makefile \
-    sqlite3/Makefile \
     smqueue/Makefile \
     testing/Makefile \
 ])

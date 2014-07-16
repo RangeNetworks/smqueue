@@ -1,6 +1,7 @@
 /**@file Elements for Call Control, GSM 04.08 10.5.4.  */
 /*
 * Copyright 2008, 2009, 2014 Free Software Foundation, Inc.
+* Copyright 2014 Range Networks, Inc.
 *
 * This software is distributed under multiple licenses; see the COPYING file in the main directory for licensing information for this specific distribuion.
 *

@@ -1,5 +1,6 @@
 #
 # Copyright 2008 Free Software Foundation, Inc.
+# Copyright 2014 Range Networks, Inc.
 #
 # This software is distributed under the terms of the GNU Public License.
 # See the COPYING file in the main directory for details.
@@ -25,7 +26,6 @@ COMMON_INCLUDEDIR = $(top_srcdir)/CommonLibs
 GSM_INCLUDEDIR = $(top_srcdir)/GSM
 SMS_INCLUDEDIR = $(top_srcdir)/SMS
 GLOBALS_INCLUDEDIR = $(top_srcdir)/Globals
-SQLITE_INCLUDEDIR = $(top_srcdir)/sqlite3
 SR_INCLUDEDIR = $(top_srcdir)/SR
 NODEMANAGER_INCLUDEDIR = $(top_srcdir)/NodeManager
 JSONBOX_INCLUDEDIR = $(top_srcdir)/NodeManager/JsonBox-0.4.3/include
@@ -41,14 +41,12 @@ STD_DEFINES_AND_INCLUDES = \
 	-I$(GLOBALS_INCLUDEDIR) \
 	-I$(SR_INCLUDEDIR) \
 	-I$(NODEMANAGER_INCLUDEDIR) \
-	-I$(JSONBOX_INCLUDEDIR) \
-	-I$(SQLITE_INCLUDEDIR)
+	-I$(JSONBOX_INCLUDEDIR)
 
 COMMON_LA = $(top_builddir)/CommonLibs/libcommon.la
 GSM_LA = $(top_builddir)/GSM/libGSM.la
 SMS_LA = $(top_builddir)/SMS/libSMS.la
 GLOBALS_LA = $(top_builddir)/Globals/libglobals.la
 NODEMANAGER_LA = $(top_builddir)/NodeManager/libnodemanager.la -lzmq
-SQLITE_LA = $(top_builddir)/sqlite3/libsqlite.la -ldl
 
 MOSTLYCLEANFILES = *~

@@ -1,6 +1,6 @@
 --
 -- This file was generated using: ./smqueue --gensql
--- binary version: release 4.0TRUNK built Mar 25 2014 rev CommonLibs:rev 
+-- binary version: release 5.0.0-prealpha+cf08b19e30 CommonLibs:7e5af6cff7 built 2014-07-08T20:46:51 
 --
 -- Future changes should not be put in this file directly but
 -- rather in the program's ConfigurationKey schema.
@@ -47,8 +47,6 @@ INSERT OR IGNORE INTO "CONFIG" VALUES('SIP.GlobalRelay.RelaxedVerify','0',1,0,'1
 INSERT OR IGNORE INTO "CONFIG" VALUES('SIP.Timeout.ACKedMessageResend','60',0,0,'Number of seconds to delay resending ACK messages.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SIP.Timeout.MessageBounce','120',1,0,'Timeout, in seconds, between bounced message sending tries.  Static.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SIP.Timeout.MessageResend','120',1,0,'Timeout, in seconds, between message sending tries.  Static.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SIP.myIP','127.0.0.1',0,0,'The internal IP address. Usually 127.0.0.1.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SIP.myIP2','192.168.0.100',0,0,'The external IP address that is communciated to the SIP endpoints.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SIP.myPort','5063',0,0,'The port that smqueue should bind to.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.FakeSrcSMSC','0000',0,0,'Use this to fill in L4 SMSC address in SMS delivery.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.HTTPGateway.Retries','5',0,0,'Maximum retries for HTTP gateway attempt.');
@@ -57,7 +55,6 @@ INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.HTTPGateway.URL','',0,0,'URL for HTTP
 INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.MaxRetries','2160',0,0,'Messages will only be attempted to be sent this many times before giving up and being dropped. Set to 0 to allow infinite retries.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SMS.RateLimit','0',0,0,'Limit delivery rate to one message every X seconds. Set to 0 to disable rate limiting.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.A3A8','../comp128',0,0,'Path to the program that implements the A3/A8 algorithm.');
-INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.Port','5064',0,0,'Port used by the SIP Authentication Server. NOTE: In some older releases (pre-2.8.1) this is called SIP.myPort.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.UpstreamServer','',0,0,'URL of the subscriber registry HTTP interface on the upstream server.  By default, this feature is disabled.  To enable, specify a server URL eg: http://localhost/cgi/subreg.cgi.  To disable again, execute "unconfig SubscriberRegistry.UpstreamServer".');
 INSERT OR IGNORE INTO "CONFIG" VALUES('SubscriberRegistry.db','/var/lib/asterisk/sqlite3dir/sqlite3.db',0,0,'The location of the sqlite3 database holding the subscriber registry.');
 INSERT OR IGNORE INTO "CONFIG" VALUES('savefile','/tmp/save',0,0,'The file to save SMS messages to when exiting.');

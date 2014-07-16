@@ -1,5 +1,6 @@
 #
 # Copyright 2008 Free Software Foundation, Inc.
+# Copyright 2014 Range Networks, Inc.
 #
 # This software is distributed under the terms of the GNU Affero Public License.
 # See the COPYING file in the main directory for details.
@@ -63,7 +64,6 @@ smqueue_LDADD = \
 	$(SMS_LA) \
 	$(GSM_LA) \
 	$(COMMON_LA) \
-	$(SQLITE_LA) \
 	$(SIP_LA) \
 	$(NODEMANAGER_LA) \
 	$(OSIP_LIBS)

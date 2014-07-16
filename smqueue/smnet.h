@@ -4,8 +4,8 @@
  * Written by John Gilmore, July 2009.
  *
  * Copyright 2009 Free Software Foundation, Inc.
- Copyright 2011, 2013, 2014 Range Networks, Inc.
-* *
+ * Copyright 2011, 2013, 2014 Range Networks, Inc.
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
