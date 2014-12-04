@@ -30,5 +30,5 @@ before_install:
 #  - sh bootstrap.sh
 
 script:
-  - dpkg-buildpackage
+  - dpkg-buildpackage -us -uc
 
