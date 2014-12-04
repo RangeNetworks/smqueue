@@ -189,7 +189,7 @@ SMnet::deliver_msg_datagram(SMqueue::short_msg_pending *smp)
  * Result == 0 if caller was interested in writing, there's no received
  * packet yet, and it's OK to write now.  OR if we timed out.
  *
- * Reads data in from the network (opned UDP socket on a specific port
+ * Reads data in from the network (opened UDP socket on a specific port
  */
 int
 SMnet::get_next_dgram (char *buffer, size_t bufferlen, int mstimeout)

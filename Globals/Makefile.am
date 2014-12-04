@@ -21,9 +21,6 @@
 
 include $(top_srcdir)/Makefile.common
 
-AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
-AM_CXXFLAGS = -Wall
-
 noinst_LTLIBRARIES = libglobals.la
 
 libglobals_la_SOURCES = Globals.cpp

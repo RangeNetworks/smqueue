@@ -193,6 +193,7 @@ void pack_tpdu(short_msg_p_list::iterator &smsg)
 	LOG(DEBUG) << "omsg->bodies.node " << omsg->bodies.node
 			<< " omsg->bodies.node->element " << omsg->bodies.node->element;
 
+	// (pat 10-2014) FIXME: This should use base64 rather than hex encoding, but OpenBTS is the only peer and it doesnt care.
 	if (omsg->bodies.node != 0 && omsg->bodies.node->element != 0) {
 		osip_body_t *bod1 = (osip_body_t *)omsg->bodies.node->element;
 		osip_free(bod1->body);
@@ -373,6 +374,7 @@ void convert_from_plain(const std::string &body, short_msg_p_list::iterator &sms
 	osip_message_t *omsg = smsg->parsed;
 
 	// Message body
+	// (pat 10-2014) FIXME: This should use base64 rather than hex encoding, but OpenBTS is the only peer and it doesnt care.
 	osip_body_t *bod1 = (osip_body_t *)omsg->bodies.node->element;
 	osip_free(bod1->body);
 	ostringstream body_stream;

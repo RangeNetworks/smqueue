@@ -28,4 +28,4 @@ m4datadir = $(datadir)/aclocal
 m4macros = \
 	pkg.m4
 
-EXTRA_DIST = $(m4macros) 
+# EXTRA_DIST = $(m4macros) 

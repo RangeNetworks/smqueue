@@ -16,14 +16,11 @@ set -e
 # for details, see http://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-# remove()
-# {
-#    killall runloop.smqueue.sh &>/dev/null
-# }
-
 case "$1" in
     remove|upgrade|deconfigure)
-#        remove
+		set +e
+		stop smqueue
+		set -e
     ;;
 
     failed-upgrade)

@@ -1,0 +1,3 @@
+usr/local/sbin/smqueue
+etc/OpenBTS/smqueue.example.sql
+OpenBTS/smqueue

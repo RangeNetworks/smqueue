@@ -272,6 +272,12 @@ class short_msg {
 		}
 	}
 
+	string scanWord(char *start) {
+		char *ep = start;
+		while (isalpha(*ep) || isdigit(*ep) || *ep == '_') ep++;
+		return string(start,ep-start);
+	}
+
 	/* Parsing, validating, and unparsing messages.
 	 * Return
 	 * 	False if failed
@@ -334,11 +340,40 @@ class short_msg {
 			LOG(DEBUG) << "SMS message encoded 3GPP";
 			content_type = VND_3GPP_SMS;
 
-			// Decode it RP-DATA
-			osip_body_t *bod1 = (osip_body_t *)parsed->bodies.node->element;
-			const char *bods = bod1->body;
-			//LOG(DEBUG) << "Calling hex2rpdata";
-			rp_data = hex2rpdata(bods);
+#if 1
+			// (pat 10-2014) Originally we sent the RPDUs encoded as hex, which was incorrect.
+			// OpenBTS now optionally sends the RPDU in base64 as per 3GPP 24.341, and adds the official "Content-Transfer-Encoding: base64" header.
+			// Unfortunately this SIP library does not have any obvious way to get that information out, so just
+			// grunge though the text of the SIP message.  This sucks.
+			string encoding = "hex";	// (pat) Use hex if other encoding not explicitly specified for backward compatibility.
+			static const char *cteHeader = "\r\nContent-Transfer-Encoding";
+			char *contentTransferEncoding = strcasestr(this->text,cteHeader);
+			if (contentTransferEncoding) {
+				char *cp = contentTransferEncoding + strlen(cteHeader);
+				while (isspace(*cp) || *cp == ':') { cp++; }
+				encoding = scanWord(cp);
+			}
+
+			char *endp = strstr(this->text,"\r\n\r\n");	// Find the beginning of the message body.
+			int content_len = parsed->content_length && parsed->content_length->value ? atoi(parsed->content_length->value) : 0;
+			rp_data = decodeRPData(endp + 4, content_len, encoding);
+#else
+				// (pat 10-2014) This is the original code for hex encoded message body.
+				// Decode it RP-DATA
+				// (pat 10-2014) Add some checks so we dont crash.
+				if (parsed->bodies.node == NULL || parsed->bodies.node->element == NULL) {
+					LOG(ERR)<< "SIP Parse error 1";
+					return true;
+				}
+				osip_body_t *bod1 = (osip_body_t *)parsed->bodies.node->element;
+				const char *bods = bod1->body;
+				if (bods == NULL) { // (pat 10-2014) More checks so we dont crash.
+					LOG(ERR)<< "SIP Parse error 2";
+					return true;
+				}
+				//LOG(DEBUG) << "Calling hex2rpdata";
+				rp_data = hex2rpdata(bods,true);
+#endif
 			if (rp_data == NULL) {
 				LOG(INFO) << "RP-DATA length is zero";  // This is okay
 				return true;

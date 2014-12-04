@@ -19,17 +19,18 @@ dnl You should have received a copy of the GNU General Public License
 dnl along with this program.  If not, see <http://www.gnu.org/licenses/>.
 dnl
 
-AC_INIT(smqueue,5.0.0-prealpha)
 AC_PREREQ(2.57)
-AC_CONFIG_SRCDIR([config/Makefile.am])
-AC_CONFIG_AUX_DIR([.])	
-AM_CONFIG_HEADER(config.h)
+AC_INIT(smqueue,5.0-master)
 
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
 
-AM_INIT_AUTOMAKE
+AC_CONFIG_AUX_DIR([.])
+AM_INIT_AUTOMAKE([-Wno-portability])
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIR([config])
+AC_CONFIG_SRCDIR([smqueue/smqueue.cpp])
 
 AM_PROG_AS
 AC_PROG_CXX
@@ -38,7 +39,7 @@ AC_PROG_MAKE_SET
 AC_PROG_INSTALL
 AC_PATH_PROG([RM_PROG], [rm])
 
-AC_LIBTOOL_WIN32_DLL
+dnl AC_LIBTOOL_WIN32_DLL
 AC_ENABLE_SHARED	dnl do build shared libraries
 AC_DISABLE_STATIC	dnl don't build static libraries
 AC_PROG_LIBTOOL
@@ -82,7 +83,6 @@ AC_CONFIG_FILES([\
     Makefile \
     config/Makefile \
     doc/Makefile \
-    tools/Makefile \
     CommonLibs/Makefile \
     Globals/Makefile \
     GSM/Makefile \

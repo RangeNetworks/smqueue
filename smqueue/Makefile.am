@@ -23,27 +23,20 @@ include $(top_srcdir)/Makefile.common
 
 DESTDIR := 
 
-AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
-AM_CXXFLAGS = -lrt -O3 -g -lpthread
+# EXTRA_DIST = \
+#	README.smqueue \
+#	smqueue.conf
 
-EXTRA_DIST = \
-	README.smqueue \
-	smqueue.conf
+ourlibs = \
+	$(GLOBALS_LA) \
+	$(SMS_LA) \
+	$(GSM_LA) \
+	$(COMMON_LA) \
+	$(NODEMANAGER_LA)
 
-noinst_PROGRAMS = \
-	smqueue
-
-noinst_HEADERS = \
-	poll.h \
-	smnet.h \
-	smqueue.h \
-	QueuedMsgHdrs.h \
-	SmqGlobals.h \
-	SmqMessageHandler.h \
-	SmqReader.h \
-	SmqWriter.h \
-	SmqTest.h
-	smsc.h
+sbin_PROGRAMS = smqueue
+confdir = /etc/OpenBTS
+conf_DATA = smqueue.example.sql
 
 smqueue_SOURCES = \
 	poll.c \
@@ -59,20 +52,8 @@ smqueue_SOURCES = \
 	smsc.cpp \
 	../SR/SubscriberRegistry.cpp
 
-smqueue_LDADD = \
-	$(GLOBALS_LA) \
-	$(SMS_LA) \
-	$(GSM_LA) \
-	$(COMMON_LA) \
-	$(SIP_LA) \
-	$(NODEMANAGER_LA) \
-	$(OSIP_LIBS)
+smqueue_LDADD = $(ourlibs) $(OSIP_LIBS)
 
-install: smqueue
-	mkdir -p "$(DESTDIR)/OpenBTS/"
-	install smqueue "$(DESTDIR)/OpenBTS/"
-	mkdir -p "$(DESTDIR)/etc/init/"
-	install smqueue.conf "$(DESTDIR)/etc/init/"
-	mkdir -p "$(DESTDIR)/etc/OpenBTS/"
-	install smqueue.example.sql "$(DESTDIR)/etc/OpenBTS/"
+smqueue.example.sql: smqueue
+	( ./smqueue --gensql > smqueue.example.sql || true )
 

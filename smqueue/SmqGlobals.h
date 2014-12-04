@@ -27,6 +27,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <string>
 
 
 #define CLOCK_REALTIME 0 // Fix this  svgfix
@@ -34,6 +35,7 @@
 
 //#define mq_printf(str, arg...) printf("%d : "str, getpid(), ##arg)  // Original
 #define mq_printf(str, arg...) printf("ms:%lu tid:%lu: "str, getCurrentMS(), pthread_self(), ##arg)
+int WriteUDPMessage(char* Buffer, int BufferSize, std::string IPAddress, int portNum);
 
 
 class SmqGlobals {

@@ -1,5 +1,5 @@
-smqueue (5.0) untested; urgency=low
+smqueue (5.0-master) untested; urgency=low
 
     * Test
 
- -- Donald C. Kirker <donald.kirker@rangenetworks.com>  Mon, 22 Apr 2013 00:11:00 -0700
+ -- Range Packager <buildmeister@rangenetworks.com>  Wed, 13 Oct 2014 12:42:00 -0700

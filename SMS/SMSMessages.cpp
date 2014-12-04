@@ -29,6 +29,7 @@
 
 #include "SMSMessages.h"
 #include <Logger.h>
+#include <Utils.h>
 
 using namespace std;
 using namespace GSM;
@@ -86,6 +87,51 @@ CPMessage * SMS::parseSMS( const GSM::L3Frame& frame )
 }
 
 
+// (pat) Added 10-2014.  Decode nul-terminated data into binary, then RPData.
+RPData *SMS::decodeRPData(const char *datastring, unsigned datalen, string encoding)
+{
+	LOG(DEBUG) << LOGVAR(datalen) <<LOGVAR(encoding);
+	if (datalen == 0) {
+		LOG(DEBUG) << "SMS RPDU string is empty";
+		return NULL;
+	}
+	string errorMessage;
+	string binaryData = decodeToString(datastring,datalen,encoding,errorMessage);
+	if (errorMessage.size()) {
+		LOG(ERR) << errorMessage;
+	}
+
+	// This is kinda suckily indirect.
+	BitVector RPDUBits(binaryData.size() * 8);
+	RPDUBits.unpack((const unsigned char*)binaryData.data());
+	RLFrame RPDU(RPDUBits);
+	LOG(DEBUG) << "SMS RPDU: " << RPDU;
+
+	RPData *rp_data = NULL;
+	try {
+		rp_data = new RPData();
+		rp_data->parse(RPDU);
+		LOG(DEBUG) << "SMS RP-DATA " << *rp_data;
+	}
+	catch (SMSReadError) {
+		LOG(WARNING) << "SMS parsing failed (above L3)";
+		// TODO:: send error back to the phone
+		delete rp_data;
+		rp_data = NULL;
+	}
+	catch (L3ReadError) {
+		LOG(WARNING) << "SMS parsing failed (in L3)";
+		// TODO:: send error back to the phone
+		delete rp_data;
+		rp_data = NULL;
+	}
+
+	return rp_data;
+}
+
+
+#if 0
+// (pat) Following method obsoleted by decodeRPData().
 RPData *SMS::hex2rpdata(const char *hexstring)
 {
 	RPData *rp_data = NULL;
@@ -120,6 +166,7 @@ RPData *SMS::hex2rpdata(const char *hexstring)
 
 	return rp_data;
 }
+#endif
 
 TLMessage *SMS::parseTPDU(const TLFrame& TPDU)
 {

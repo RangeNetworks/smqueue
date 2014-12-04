@@ -19,8 +19,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-CXXFLAGS := -DTIMESTAMP_ISO=`date +'"%Y-%m-%dT%H:%M:%S"'`
-CFLAGS := -DTIMESTAMP_ISO=`date +'"%Y-%m-%dT%H:%M:%S"'`
+AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
+AM_CXXFLAGS := -Wall -lrt -pthread -DTIMESTAMP_ISO=`date +'"%Y-%m-%dT%H:%M:%S"'`
+
+REPOREV = -D'REPO_REV="$(shell ./$(top_builddir)/Globals/GrabRepoInfo.sh $(top_builddir))"'
 
 COMMON_INCLUDEDIR = $(top_srcdir)/CommonLibs
 GSM_INCLUDEDIR = $(top_srcdir)/GSM
@@ -29,8 +31,6 @@ GLOBALS_INCLUDEDIR = $(top_srcdir)/Globals
 SR_INCLUDEDIR = $(top_srcdir)/SR
 NODEMANAGER_INCLUDEDIR = $(top_srcdir)/NodeManager
 JSONBOX_INCLUDEDIR = $(top_srcdir)/NodeManager/JsonBox-0.4.3/include
-
-REPOREV = -D'REPO_REV="$(shell ./$(top_builddir)/Globals/GrabRepoInfo.sh $(top_builddir))"'
 
 STD_DEFINES_AND_INCLUDES = \
 	$(REPOREV) \

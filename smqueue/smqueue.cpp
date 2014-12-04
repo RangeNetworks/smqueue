@@ -33,6 +33,8 @@
 #include <sys/stat.h>           // open
 #include <fcntl.h>          // open
 #include <ctype.h>		// isdigit
+#include <string>
+#include <stdlib.h>
 
 #undef WARNING
 
@@ -755,9 +757,7 @@ short_msg_pending::validate_short_msg(SMq *manager, bool should_early_check)
 		from_relay = true;
 		LOG(DEBUG) << "In bound message from " << p->from->url->username << " to " << user << " is from relay";
 	}
-	// The spec wants Via: line even on acks, but do we care?  FIXME.
-	// if (p->vias.nb_elt < 1 || false) // ... FIXME )
-	//	return 400;
+
 	// www_authenticates - no restrictions
 	// headers - ???
 	// message_property ??? FIXME
@@ -806,11 +806,13 @@ short_msg_pending::set_qtag()
 		LOG(DEBUG) << "No from address in setqtag";
 		return 400;
 	}
+#if 0
 	plist = (__node_t *) p->from->gen_params.node;
 	if (!plist) {
-		LOG(DEBUG) << "No node in param list";
+		LOG(DEBUG) << "No node in from param list";
 		return 400;
 	}
+#endif
 
 	// Handle from tag which is optional
 	fromtag = NULL;
@@ -1000,7 +1002,7 @@ void SMq::process_timeout()
 		}
 
 		// Got message to process from queue
-		LOG(DEBUG) << "Process message from queue" << time_sorted_list.size();
+		LOG(DEBUG) << "Process message from SMS queue size: " << time_sorted_list.size();
 #undef DEBUG_Q
 #ifdef DEBUG_Q
 	LOG(DEBUG) << "===== Top of process timeout";
@@ -1289,7 +1291,7 @@ SMq::originate_half_sm(string method)
 {
 	short_msg_p_list *smpl;
 	short_msg_pending *response;
-	osip_via_t *via;
+	//osip_via_t *via;
 	char *temp, *p, *mycallnum;
 	const char *myhost;
 
@@ -1346,16 +1348,10 @@ SMq::originate_half_sm(string method)
 
 	osip_message_set_method (response->parsed, osip_strdup(method.c_str()));
 
-	osip_message_set_via(response->parsed, "SIP/2.0/UDP x 1234;branch=123");
-	// FIXME, don't assume UDP, allow TCP here too.
-	osip_message_get_via (response->parsed, 0, &via);
-	temp = via_get_host(via);
-	osip_free(temp);
-	via_set_host(via, osip_strdup(my_ipaddress.c_str()));
-	temp = via_get_port(via);
-	osip_free(temp);
-	via_set_port(via, osip_strdup(my_udp_port.c_str()));
-
+	ostringstream newvia;
+	newvia << "SIP/2.0/UDP " << my_ipaddress.c_str() << ":" << my_udp_port.c_str() << ";branch=1;received="
+				<< "smqueue@Range.com";
+	osip_message_append_via(response->parsed, newvia.str().c_str());
 	// We've altered the text, and the parsed version controls.
 	response->parsed_was_changed();
 
@@ -1880,17 +1876,12 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 
 	// Insert a Via: line describing us, this makes us easier to trace,
 	// and also allows a remote SIP agent to reply to us.  (Maybe?)
-	osip_via_t *via;
-	char *temp;
-	osip_message_append_via(qmsg->parsed, "SIP/2.0/UDP x:1234;branch=123");
-	// FIXME, don't assume UDP, allow TCP here too.
-	osip_message_get_via (qmsg->parsed, 0, &via);
-	temp = via_get_host(via);
-	osip_free(temp);
-	via_set_host(via, osip_strdup(my_ipaddress.c_str()));
-	temp = via_get_port(via);
-	osip_free(temp);
-	via_set_port(via, osip_strdup(my_udp_port.c_str()));
+
+	ostringstream newvia;
+	newvia << "SIP/2.0/UDP " << my_ipaddress.c_str() << ":" << my_udp_port.c_str() << ";branch=1;received="
+				<< "smqueue@Range.com";
+	osip_message_append_via(qmsg->parsed, newvia.str().c_str());
+
 
 	/* Username can be in various formats.  Check for formats that
 	   we know about.  Anything else we punt.
@@ -2072,26 +2063,28 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 		// It had better say "imsi" if it's an IMSI, else
 		// lookup_uri_hostport will get confused.
 		if (newdest
-                 && 0 != strncmp("imsi", newdest, 4) 
-		 && 0 != strncmp("IMSI", newdest, 4)) {
+            && 0 != strncmp("imsi", newdest, 4)
+            && 0 != strncmp("IMSI", newdest, 4)) {
 			free(newdest);
 			newdest = NULL;
 		}
 
-		if (!newdest) {
-			/* Didn't find it in HLR or fake table.  Bitch. */
+		if (!newdest) {  // Destination not found
+			/* Didn't find it in HLR or fake table. */
 			// We have to return an error to the originator.
+			// Enabling roaming will disable global relay
 			LOG(NOTICE) << "Lookup phonenum '" << username << "' to IMSI failed";
 			LOG(DEBUG) << "MSG = " << qmsg->text;
 
 		    if (global_relay.c_str()[0] == '\0') {
-			// TODO : disabled, to disconnect SR from smqueue
-			// || !my_hlr.useGateway(username)) {
-			// There's no global relay -- or the HLR says not to
-			// use the global relay for it -- so send a bounce.
-			LOG(WARNING) << "no global relay defined; bouncing message intended for " << username;
-			return bounce_message (qmsg, gConfig.getStr("Bounce.Message.NotRegistered").c_str());
+				// TODO : disabled, to disconnect SR from smqueue
+				// || !my_hlr.useGateway(username)) {
+				// There's no global relay -- or the HLR says not to
+				// use the global relay for it -- so send a bounce.
+		    	LOG(WARNING) << "no global relay defined; bouncing message intended for " << username;
+		    	return bounce_message(qmsg, gConfig.getStr("Bounce.Message.NotRegistered").c_str());
 		    } else {
+		    // Global relay enabled
 			// Send the message to our global relay.
 			// We leave the username as a phone number, and
 			// let it pass on to look up the destination
@@ -2222,7 +2215,7 @@ SMq::respond_sip_ack(int errcode, SMqueue::short_msg_pending *smp,
 	case 200:	phrase="Okay!"; break;
 	case 202:	phrase="Queued"; break;
 	case 400:	phrase="Bad Request"; break;
-	case 401:	phrase="Un Author Ized"; break;
+	case 401:	phrase="Unauthorized"; break;
 	case 403:	phrase="Forbidden - first register, by texting your 10-digit phone number to 101."; break;
 	case 404:	phrase="Phone Number Not Registered"; break;  // Not Found
 	case 405:	phrase="Method Not Allowed";
@@ -2877,8 +2870,7 @@ ConfigurationKeyMap getConfigurationKeys()
 		"",
 		false,
 		"Log CDRs here.  "
-		"To enable, specify an absolute path to where the CDRs should be logged.  "
-		"To disable, execute \"unconfig CDRFile\"."
+		"To enable, specify an absolute path to where the CDRs should be logged."
 	);
 	map[tmp->getName()] = *tmp;
 	delete tmp;

@@ -21,33 +21,31 @@
 
 include $(top_srcdir)/Makefile.common
 
-AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
-AM_CXXFLAGS = -Wall -g -losipparser2 -losip2 -lc -lpthread
-
 noinst_PROGRAMS = \
 	smtest \
 	smrelaytest \
 	sminterface
 
-smtest_SOURCES = \
-	smtest.cpp 
-smtest_LDADD = \
+noinst_HEADERS = \
+	smtest.h \
+	smrelaytest.h
+
+ourlibs = \
 	$(COMMON_LA) \
 	$(SQLITE_LA)
+
+smtest_SOURCES = \
+	smtest.cpp 
+smtest_LDADD = $(ourlibs)
+smtest_CXXFLAGS = $(AM_CXXFLAGS) -losipparser2 -losip2 -lc
 
 smrelaytest_SOURCES = \
 	smrelaytest.cpp
-smrelaytest_LDADD = \
-	$(COMMON_LA) \
-	$(SQLITE_LA)
+smrelaytest_LDADD = $(ourlibs)
+smrelaytest_CXXFLAGS = $(AM_CXXFLAGS) -losipparser2 -losip2 -lc
 
 sminterface_SOURCES = \
 	sminterface.cpp
-sminterface_LDADD = \
-	$(COMMON_LA) \
-	$(SQLITE_LA)
-
-EXTRA_DIST = \
-	smtest.h \
-	smrelaytest.h
+sminterface_LDADD = $(ourlibs)
+sminterface_CXXFLAGS = $(AM_CXXFLAGS) -losipparser2 -losip2 -lc
 

@@ -11,7 +11,7 @@
 # build-arch and build-indep targets  by Bill Allombert 2001
 
 # Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
+export DH_VERBOSE=0
 
 # Never distribute source control meta information
 export DH_ALWAYS_EXCLUDE=.svn:.git
@@ -20,29 +20,26 @@ export DH_ALWAYS_EXCLUDE=.svn:.git
 export DH_OPTIONS
 
 configure:
-	./autogen.sh
+	./autogen.sh # --verbose
 
 config: configure-stamp
 configure-stamp: configure
 	dh_testdir
 	# Add here commands to configure the package.
-	autoreconf -i
 	./configure $(confflags)
 	touch configure-stamp
 
 #Architecture
-build: build-arch build-indep
+build: config build-arch build-indep
 
 build-arch: build-arch-stamp
 build-arch-stamp: configure-stamp  
-
 	# Add here commands to compile the arch part of the package.
 	#$(MAKE)
 	touch $@
 
 build-indep: build-indep-stamp
 build-indep-stamp: configure-stamp  
-
 	# Add here commands to compile the indep part of the package.
 	#$(MAKE) doc
 	touch $@
@@ -67,7 +64,7 @@ install-indep:
 	# Add here commands to install the indep part of the package into
 	# debian/<package>-doc.
 	#INSTALLDOC#
-#	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
+
 	dh_install -i
 
 install-arch:
@@ -77,8 +74,8 @@ install-arch:
 	dh_installdirs -s
 
 	# Add here commands to install the arch part of the package into
-	# debian/tmp.
-	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
+	# debian/{package}.
+	$(MAKE) DESTDIR=$(CURDIR)/debian/smqueue install
 
 	dh_install -s
 
@@ -88,8 +85,8 @@ install-arch:
 binary-common:
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs ChangeLog
-	dh_installdocs
+#	dh_installchangelogs ChangeLog
+#	dh_installdocs
 #	dh_installexamples
 #	dh_installmenu
 #	dh_installdebconf	
@@ -98,7 +95,7 @@ binary-common:
 #	dh_installpam
 #	dh_installmime
 #	dh_python
-	dh_installinit
+	dh_installinit --upstart-only --noscripts
 #	dh_installcron
 #	dh_installinfo
 	dh_installman
@@ -121,6 +118,6 @@ binary-indep: build-indep install-indep
 binary-arch: build-arch install-arch
 	$(MAKE) -f debian/rules DH_OPTIONS=-s binary-common
 
-binary: binary-arch binary-indep
-.PHONY: build clean binary-indep binary-arch binary install install-indep install-arch config
+binary: config binary-arch binary-indep
 
+.PHONY: build clean binary-indep binary-arch binary install install-indep install-arch config

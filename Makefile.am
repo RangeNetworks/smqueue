@@ -21,9 +21,9 @@
 
 include $(top_srcdir)/Makefile.common
 
-DESTDIR := 
-
-AM_CXXFLAGS = -Wall -O2 -g -pthread -ldl
+DESTDIR ?= 
+# must be kept in sync with AC_CONFIG_MACRO_DIR in configure.ac
+ACLOCAL_AMFLAGS = -I config
 
 # Order must be preserved
 SUBDIRS = \
@@ -33,21 +33,11 @@ SUBDIRS = \
 	GSM \
 	SMS \
 	doc \
-	tools \
 	NodeManager \
 	smqueue \
 	testing
 
-EXTRA_DIST = \
-	INSTALLATION \
-	LEGAL \
-	COPYING \
-	README
-
 install: all
 	$(MAKE) -C ./smqueue install
-
-dox: FORCE
-	doxygen doxconfig
 
 FORCE:

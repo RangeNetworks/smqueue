@@ -24,6 +24,7 @@
 
 
 #include "SmqGlobals.h"
+#include "Sockets.h"
 #include <Logger.h>
 
 SmqGlobals::SmqGlobals() {
@@ -94,4 +95,37 @@ time_t msgettime() {
 	return time_in_mill;
 }
 
+
+
+
+int WriteUDPMessage(char* Buffer, int BufferSize, std::string IPAddress, int portNum) {
+	int sfd;
+	bool okay = false;
+	struct sockaddr_in saddr;
+	socklen_t addrlen;
+
+	LOG(DEBUG) << "Send message to: " << IPAddress << ":" << portNum;
+	LOG(DEBUG) << "Message being sent: " << Buffer;
+
+	sfd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sfd == -1) {
+		LOG(DEBUG) "Failed to create socket error: " << errno;
+		return -1;
+	}
+
+	bzero(&saddr, sizeof(saddr));
+	saddr.sin_family = AF_INET;
+	inet_pton(AF_INET, IPAddress.c_str(), &saddr.sin_addr);
+	saddr.sin_port = htons(portNum);
+	addrlen=sizeof(saddr);
+	okay = resolveAddress(&saddr, (const char*) IPAddress.c_str(), portNum);
+
+	int retlen = sendto(sfd, Buffer, BufferSize, 0, (struct sockaddr *) &saddr, addrlen);
+	if (retlen == 0) {
+		LOG(DEBUG) "sendto failed";
+	}
+
+	close(sfd);
+	return retlen;
+}
 
