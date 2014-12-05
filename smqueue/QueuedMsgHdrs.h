@@ -60,6 +60,7 @@ public:
 	virtual int ProcessMessage() {
 		// Not currently used
 		LOG(DEBUG) << "Process message QueuedMsgHdrs DID NOTHING";
+		return 0;
 	}
 
 private:
@@ -150,6 +151,7 @@ public:
 
 	virtual int ProcessMessage() {
 		LOG(DEBUG) << "Process message TestMessage msg:" << msg;  // Log is all this message has to do currently
+		return 0;
 	}//
 
 private:
@@ -176,6 +178,7 @@ public:
 		// Got a message in the queue go handle it
 		LOG(DEBUG) << "Process message ProcessIncommingMsg";
 		smq.process_timeout();
+		return 0;
 	}
 
 };
