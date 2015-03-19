@@ -55,6 +55,7 @@ AC_C_INLINE
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
 AC_C_BIGENDIAN
+AC_CHECK_LIB(pthread, pthread_create)
 
 dnl Check for libzmq
 if test ! -r "/usr/include/zmq.h" -a ! -r "/usr/local/include/zmq.h"; then
