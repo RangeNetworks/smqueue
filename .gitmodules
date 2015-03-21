@@ -1,6 +1,6 @@
 [submodule "SR"]
 	path = SR
-	url = git@github.com/endaga/subscriberRegistry.git
+	url = git@github.com:endaga/subscriberRegistry.git
 	branch = master
 [submodule "sqlite3"]
 	path = sqlite3
