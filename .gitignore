@@ -26,8 +26,9 @@ compile
 debian/debhelper.log
 debian/files
 debian/smqueue
-debian/smqueue.debhelper.log
-debian/smqueue.substvars
+debian/smqueue-public
+debian/smqueue-public.debhelper.log
+debian/smqueue-public.substvars
 debian/substvars
 libtool
 ltmain.sh
