@@ -33,7 +33,6 @@ debian/substvars
 libtool
 ltmain.sh
 smqueue/smqueue
-smqueue/smqueue.example.sql
 stamp-h1
 testing/sminterface
 testing/smrelaytest
