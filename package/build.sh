@@ -44,7 +44,7 @@ function get_linux_flavor() {
 
 
 echo == Building SMQueue package
-srcrepodir='COMMERCIAL-smqueue'
+srcrepodir='smqueue'
 builddir='package/tmp'
 here=`pwd`
 dirname=`basename ${here}`
@@ -106,15 +106,17 @@ make
 make install DESTDIR=${here}/${builddir}/build
 cd ${builddir}/build
 mkdir -p OpenBTS
+mkdir -p usr/local/bin
 cd OpenBTS
-ln -s ../usr/local/sbin/smqueue
+cp smqueue ../usr/local/bin/
 cd ${here}
 echo
 
 echo " # creating a package:"
 BUILDREPOREV=`git rev-parse --short=10 HEAD`
 case "${OS_FLAVOR}" in
-ubuntu)	fpm -s dir -t deb -n smqueue -C ${builddir}/build \
+ubuntu)
+  fpm -s dir -t deb -n smqueue -C ${builddir}/build \
 	-p ${packagedir}/smqueue_VERSION-sha1.${BUILDREPOREV}_ARCH.deb \
 	--description 'Range Networks - SMQueue RFC-3428 Store and Forward Server' \
 	--version ${BUILDVERSION} \
@@ -133,8 +135,7 @@ ubuntu)	fpm -s dir -t deb -n smqueue -C ${builddir}/build \
 	--deb-upstart ${here}/debian/smqueue.upstart \
 	--deb-priority 'optional' \
 	--workdir ${here}/${builddir}/deb \
-	--inputs package/inputs
-#	--verbose \
+	--verbose \
     ;;
 centos)
 	# place the upstart script manually
