@@ -7,7 +7,7 @@ Build-Depends: build-essential, debhelper (>= 7), libtool, pkg-config, autoconf,
 Standards-Version: 3.7.3
 
 Package: smqueue-public
-Provides: smqueue-public
+Provides: smqueue
 Section: comm
 Priority: optional
 Architecture: any
