@@ -12,6 +12,5 @@ Section: comm
 Priority: optional
 Architecture: any
 Essential: no
-Depends: sqlite3, libosip2-4, libc6, pkg-config, libzmq1, supervisor
+Depends: sqlite3, libosip2-dev, libc6, pkg-config, libzmq1, supervisor
 Description: Endaga - SMQueue RFC-3428 Store and Forward Server
-
