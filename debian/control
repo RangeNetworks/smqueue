@@ -1,17 +1,17 @@
 Source: smqueue-public
 Section: comm
 Priority: optional
-Maintainer: Range Networks, Inc. <info@rangenetworks.com>
-Homepage: http://www.rangenetworks.com/
+Maintainer: Endaga, Inc. <hello@endaga.com>
+Homepage: http://www.endaga.com/
 Build-Depends: build-essential, debhelper (>= 7), libtool, pkg-config, autoconf, libsqlite3-dev, libosip2-dev, libzmq3-dev, libcoredumper1, libcoredumper-dev
 Standards-Version: 3.7.3
 
 Package: smqueue-public
-Provides: smqueue
+Provides: smqueue-public
 Section: comm
 Priority: optional
 Architecture: any
 Essential: no
 Depends: sqlite3, libosip2-4, libc6, pkg-config, libzmq1, supervisor
-Description: Range Networks - SMQueue RFC-3428 Store and Forward Server
+Description: Endaga - SMQueue RFC-3428 Store and Forward Server
 
