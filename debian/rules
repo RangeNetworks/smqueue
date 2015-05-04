@@ -75,7 +75,7 @@ install-arch:
 
 	# Add here commands to install the arch part of the package into
 	# debian/{package}.
-	$(MAKE) DESTDIR=$(CURDIR)/debian/smqueue install
+	$(MAKE) DESTDIR=$(CURDIR)/debian/smqueue-public install
 
 	dh_install -s
 
@@ -99,7 +99,7 @@ binary-common:
 #	dh_installcron
 #	dh_installinfo
 	dh_installman
-	dh_link
+#	dh_link
 #	dh_strip
 	dh_compress
 	dh_fixperms

@@ -2281,7 +2281,7 @@ SMq::lookup_uri_hostport (short_msg_pending *qmsg)
 	} else {
 		/* imsi is an IMSI at this point.  */
 		LOG(DEBUG) << "We have an IMSI: " << imsi;
-		newport = NULL;
+		newport = my_hlr.getRegistrationPort (imsi);
 		newhost = my_hlr.getRegistrationIP (imsi);
 	}
 
