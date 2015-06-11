@@ -502,7 +502,6 @@ class short_msg {
 						decoded_text = deliver->UD().decode();
 					}
 				}
-				LOG(NOTICE) << "Decoded text: " << decoded_text;
 				return decoded_text;
 			}
 			catch (SMSReadError) {
