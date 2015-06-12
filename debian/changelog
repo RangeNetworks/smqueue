@@ -1,3 +1,9 @@
+smqueue-public (5.0.2); urgency=medium
+
+  * No longer syslogs message contents 
+
+ -- Matt Ball <matt@endaga.com>  Fri, 12 Jun 2015 23:13:44 +0000
+
 smqueue-public (5.0) untested; urgency=low
 
   * Test
