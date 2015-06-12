@@ -1,4 +1,4 @@
-smqueue-public (5.0.2); urgency=medium
+smqueue-public (5.0.2) unstable; urgency=medium
 
   * No longer syslogs message contents 
 
