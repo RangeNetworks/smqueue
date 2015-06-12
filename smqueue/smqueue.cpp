@@ -1349,8 +1349,7 @@ SMq::originate_half_sm(string method)
 	osip_message_set_method (response->parsed, osip_strdup(method.c_str()));
 
 	ostringstream newvia;
-	newvia << "SIP/2.0/UDP " << my_ipaddress.c_str() << ":" << my_udp_port.c_str() << ";branch=1;received="
-				<< "smqueue@Range.com";
+	newvia << "SIP/2.0/UDP " << my_ipaddress.c_str() << ":" << my_udp_port.c_str() << ";branch=1";
 	osip_message_append_via(response->parsed, newvia.str().c_str());
 	// We've altered the text, and the parsed version controls.
 	response->parsed_was_changed();
@@ -1878,8 +1877,7 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 	// and also allows a remote SIP agent to reply to us.  (Maybe?)
 
 	ostringstream newvia;
-	newvia << "SIP/2.0/UDP " << my_ipaddress.c_str() << ":" << my_udp_port.c_str() << ";branch=1;received="
-				<< "smqueue@Range.com";
+	newvia << "SIP/2.0/UDP " << my_ipaddress.c_str() << ":" << my_udp_port.c_str() << ";branch=1";
 	osip_message_append_via(qmsg->parsed, newvia.str().c_str());
 
 
@@ -2281,7 +2279,7 @@ SMq::lookup_uri_hostport (short_msg_pending *qmsg)
 	} else {
 		/* imsi is an IMSI at this point.  */
 		LOG(DEBUG) << "We have an IMSI: " << imsi;
-		newport = NULL;
+		newport = my_hlr.getRegistrationPort (imsi);
 		newhost = my_hlr.getRegistrationIP (imsi);
 	}
 

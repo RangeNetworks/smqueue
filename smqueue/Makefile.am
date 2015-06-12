@@ -57,3 +57,11 @@ smqueue_LDADD = $(ourlibs) $(OSIP_LIBS)
 smqueue.example.sql: smqueue
 	( ./smqueue --gensql > smqueue.example.sql || true )
 
+install: smqueue
+	mkdir -p "$(DESTDIR)/OpenBTS/"
+	install smqueue "$(DESTDIR)/OpenBTS/"
+	mkdir -p "$(DESTDIR)/etc/supervisor/conf.d/"
+	install smqueue.conf "$(DESTDIR)/etc/supervisor/conf.d/"
+	mkdir -p "$(DESTDIR)/etc/OpenBTS/"
+	install smqueue.example.sql "$(DESTDIR)/etc/OpenBTS/"
+

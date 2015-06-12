@@ -1,5 +1,11 @@
-smqueue (5.0) untested; urgency=low
+smqueue-public (5.0.2) unstable; urgency=medium
 
-    * Test
+  * No longer syslogs message contents 
+
+ -- Matt Ball <matt@endaga.com>  Fri, 12 Jun 2015 23:13:44 +0000
+
+smqueue-public (5.0) untested; urgency=low
+
+  * Test
 
  -- Range Packager <buildmeister@rangenetworks.com>  Wed, 13 Oct 2014 12:42:00 -0700
