@@ -194,14 +194,26 @@ void pack_tpdu(short_msg_p_list::iterator &smsg)
 			<< " omsg->bodies.node->element " << omsg->bodies.node->element;
 
 	// (pat 10-2014) FIXME: This should use base64 rather than hex encoding, but OpenBTS is the only peer and it doesnt care.
+	// (harvind 11-2015) I fixed this below.  Now using the encoding in the SIP message.
 	if (omsg->bodies.node != 0 && omsg->bodies.node->element != 0) {
+
+		string encoding = "hex";        // (pat) Use hex if other encoding not explicitly specified for backward compatibility.
+                static const char *cteHeader = "\r\nContent-Transfer-Encoding";
+                char *contentTransferEncoding = strcasestr(smsg->text,cteHeader);
+                if (contentTransferEncoding) {
+                	char *cp = contentTransferEncoding + strlen(cteHeader);
+                        while (isspace(*cp) || *cp == ':') { cp++; }
+                        	encoding = smsg->scanWord(cp);
+                }
+
 		osip_body_t *bod1 = (osip_body_t *)omsg->bodies.node->element;
 		osip_free(bod1->body);
-		ostringstream body_stream;
-		RPDU_new.hex(body_stream);
-		bod1->length = body_stream.str().length();
+		string errorMessage;
+		string packet = RPDU_new.packToString();
+		string body_stream = encodeToString(packet.data(),packet.size(),encoding,errorMessage);
+		bod1->length = body_stream.size();
 		bod1->body = (char *)osip_malloc (bod1->length+1);
-		strcpy(bod1->body, body_stream.str().data());
+		strcpy(bod1->body, body_stream.data());
 	} else {
 		LOG(DEBUG) << "String length zero";
 	}
